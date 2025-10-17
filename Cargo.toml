@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/tradez-client",
+    "crates/tradez-kernel",
+    "crates/tradez-sequencer",
+    "crates/tradez-types",
+]
+
+[workspace.dependencies]
+tradez-types = { package = "tradez-types", path = "./crates/tradez-types" }
+tradez-kernel = { package = "tradez-kernel", path = "./crates/tradez-kernel" }
+bincode = { version = "2.0.1", features = ["serde"] }
+alloy-signer-local = { version = "1.0.41", features = ["keystore"] }
+alloy-primitives = { version = "1.2.0", default-features = false, features = ["rlp", "serde"] }
+clap = { version = "4.5", features = ["derive"] }
+nom = "7.1"
+tezos_data_encoding = "0.5"
+tezos-smart-rollup = { git = "https://gitlab.com/tezos/tezos.git", default-features = false, features = [
+  "std",
+  "crypto",
+  "dlmalloc",
+  "panic-hook",
+  "data-encoding",
+  "storage",
+  "testing",
+] }
+tezos-smart-rollup-host = { git = "https://gitlab.com/tezos/tezos.git" }
+
+
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonrpc-core = "18.0"
+jsonrpc-http-server = "18.0"
+jsonrpc-derive = "18.0"
+jsonrpc-core-client = "18.0"
+hex = "0.4"
+rand = "0.8"

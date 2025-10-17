@@ -1,0 +1,17 @@
+[package]
+name = "tradez-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-signer-local.workspace = true
+clap.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jsonrpc-core.workspace = true
+jsonrpc-derive.workspace = true
+jsonrpc-core-client.workspace = true
+hex.workspace = true
+rand.workspace = true

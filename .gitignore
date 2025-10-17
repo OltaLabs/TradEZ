@@ -1,0 +1,7 @@
+/target
+preimages/
+tradez_kernel_installer.wasm
+tradez_kernel_installer.hex
+password
+wallets/
+tradez_kernel.debug
