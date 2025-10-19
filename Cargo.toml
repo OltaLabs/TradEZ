@@ -3,13 +3,18 @@ resolver = "3"
 members = [
     "crates/tradez-client",
     "crates/tradez-kernel",
+    "crates/tradez-octez",
     "crates/tradez-sequencer",
+    "crates/tradez-tests",
     "crates/tradez-types",
 ]
 
 [workspace.dependencies]
+tradez-octez = { package = "tradez-octez", path = "./crates/tradez-octez" }
 tradez-types = { package = "tradez-types", path = "./crates/tradez-types" }
 tradez-kernel = { package = "tradez-kernel", path = "./crates/tradez-kernel" }
+tempfile = "3.23.0"
+openport = "0.1.1"
 bincode = { version = "2.0.1", features = ["serde"] }
 alloy-signer-local = { version = "1.0.41", features = ["keystore"] }
 alloy-primitives = { version = "1.2.0", default-features = false, features = ["rlp", "serde"] }

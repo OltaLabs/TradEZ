@@ -42,10 +42,10 @@ impl TradezRpc for TradezRpcImpl {
 }
 
 pub fn launch_server() -> std::io::Result<()> {
-        println!("Starting TradEZ JSON-RPC server...");
+    println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl;
-    
+
     let mut io = jsonrpc_core::IoHandler::new();
     io.extend_with(rpc_impl.to_delegate());
 

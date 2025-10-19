@@ -10,16 +10,18 @@ mod orderbook;
 fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
     if let Some((_, msg)) = InboxMessage::<MichelsonBytes>::parse(msg.as_ref()).ok() {
         match msg {
-            InboxMessage::External(data) => {
-                let (message, _): (inbox::Message, usize) = bincode::serde::decode_from_slice(data, bincode::config::standard()).unwrap();
-                match message.action {
-                    inbox::OrderAction::Open(order) => {
-                        debug_msg!(host, "Received Open Order: {:?}\n", order);
-                    }
-                    inbox::OrderAction::Close(order_id) => {
-                        debug_msg!(host, "Received Close Order for ID: {}\n", order_id);
-                    }
-                }
+            InboxMessage::External(_data) => {
+                // let (message, _): (inbox::Message, usize) =
+                //     bincode::serde::decode_from_slice(data, bincode::config::standard()).unwrap();
+                // match message.action {
+                //     inbox::OrderAction::Open(order) => {
+                //         debug_msg!(host, "Received Open Order: {:?}\n", order);
+                //     }
+                //     inbox::OrderAction::Close(order_id) => {
+                //         debug_msg!(host, "Received Close Order for ID: {}\n", order_id);
+                //     }
+                // }
+
             }
             InboxMessage::Internal(_) => {}
         }

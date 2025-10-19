@@ -1,0 +1,9 @@
+[package]
+name = "tradez-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives.workspace = true
+serde.workspace = true
+tradez-octez.workspace = true

@@ -1,9 +1,0 @@
-
-./reset_sandbox.sh
-octez-client -block genesis activate protocol PtSeouLouXkxhg39oWzjxDWaCydNfR3RxCUrNe4Q9Ro8BTehcbh with fitness 1 and key activator and parameters sandbox_parameters.json
-./originate_rollup.sh
-
-octez-client --password-filename password bake for --minimal-timestamp
-octez-smart-rollup-node run operator for "tradez_rollup" with operators "bootstrap1" --data-dir ~/.tradez-rollup-node/ --log-kernel-debug --log-kernel-debug-file tradez_kernel.debug 
-
-while octez-client --password-filename password bake for --minimal-timestamp; do sleep 1; done

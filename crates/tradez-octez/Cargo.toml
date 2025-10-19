@@ -1,0 +1,11 @@
+[package]
+name = "tradez-octez"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-primitives.workspace = true
+serde.workspace = true
+tempfile.workspace = true
+openport.workspace = true
+serde_json.workspace = true

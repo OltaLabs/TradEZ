@@ -9,7 +9,7 @@ struct Args {
     /// URL of the sequencer server
     #[arg(short, long, default_value_t = String::from("http://localhost:8545"))]
     url: String,
-    
+
     #[clap(subcommand)]
     app: AppSubcommand,
 }
@@ -42,14 +42,11 @@ struct Wallet {
 #[derive(Subcommand, Debug)]
 enum WalletCommand {
     /// Create a new wallet
-    Create {
-    },
+    Create {},
     /// Get positions of a wallet
-    GetPositions {
-    },
+    GetPositions {},
     /// Balance of a wallet
-    Balance {
-    },
+    Balance {},
     /// Open a new position
     OpenPosition {
         /// Side of the position (0 = long, 1 = short)
@@ -66,11 +63,12 @@ enum WalletCommand {
 
 pub fn main() {
     let args = Args::parse();
-    
+
     let server_url = args.url;
     match args.app {
         AppSubcommand::Wallet(wallet_cmd) => {
-            let wallet = wallet::load_wallet(&wallet_cmd.dirpath, &wallet_cmd.name, wallet_cmd.password);
+            let wallet =
+                wallet::load_wallet(&wallet_cmd.dirpath, &wallet_cmd.name, wallet_cmd.password);
             match wallet_cmd.command {
                 WalletCommand::Create {} => {
                     println!("Wallet created: {}", wallet_cmd.name);
@@ -84,11 +82,17 @@ pub fn main() {
                     // Implement balance fetching logic here
                 }
                 WalletCommand::OpenPosition { side } => {
-                    println!("Opening position with side: {} for wallet: {}", side, wallet_cmd.name);
+                    println!(
+                        "Opening position with side: {} for wallet: {}",
+                        side, wallet_cmd.name
+                    );
                     // Implement open position logic here
                 }
                 WalletCommand::ClosePosition { position_id } => {
-                    println!("Closing position with ID: {} for wallet: {}", position_id, wallet_cmd.name);
+                    println!(
+                        "Closing position with ID: {} for wallet: {}",
+                        position_id, wallet_cmd.name
+                    );
                     // Implement close position logic here
                 }
             }

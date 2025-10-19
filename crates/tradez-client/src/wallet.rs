@@ -13,17 +13,18 @@ pub fn load_wallet(dirpath: &str, name: &str, password: String) -> Wallet {
     let filepath = format!("{}/{}.json", dirpath, name);
     if Path::new(&filepath).is_file() {
         // Load existing wallet from file
-        Wallet{
+        Wallet {
             local_signer: PrivateKeySigner::decrypt_keystore(filepath, password)
-            .expect("Failed to decrypt wallet")
+                .expect("Failed to decrypt wallet"),
         }
     } else {
         // Create a new wallet
         let signer = PrivateKeySigner::random();
         let mut rng = rand::thread_rng();
-        PrivateKeySigner::new_keystore(dirpath, &mut rng, password, Some(name)).expect("Failed to create wallet");
+        PrivateKeySigner::new_keystore(dirpath, &mut rng, password, Some(name))
+            .expect("Failed to create wallet");
         Wallet {
-            local_signer: signer
+            local_signer: signer,
         }
     }
 }
