@@ -9,5 +9,5 @@ Build kernel :
 
 Launch tests : 
 ```
-cargo test --package tradez-tests --lib
+cargo build --release && cargo test --package tradez-tests --lib
 ```

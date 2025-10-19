@@ -9,13 +9,14 @@ mod tests {
 
     use tradez_octez::l1_node::L1NodeConfig;
 
-    // Here you can write integration tests that use tradez-octez
+    // Here you can write integration tests that use tradez (sequencer + client) and an L1 node + smart rollup node + tezos client
     #[test]
     fn basic_flow_works() {
         let mut node = tradez_octez::l1_node::L1Node::launch(L1NodeConfig {
             print_commands: true,
             verbose: true,
         });
+        std::thread::sleep(std::time::Duration::from_secs(5));
         let octez_client = tradez_octez::client::Client::new_with_temp_dir(
             tradez_octez::client::ClientConfig {
                 print_commands: true,
@@ -73,7 +74,7 @@ mod tests {
             sequencer.rpc_port,
         );
         tradez_client.buy(10, 1000);
-        std::thread::sleep(std::time::Duration::from_secs(10));
+        std::thread::sleep(std::time::Duration::from_secs(5));
         sequencer.stop();
         smart_rollup_node.stop();
         node.stop();
