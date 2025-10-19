@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -13,3 +14,6 @@ jsonrpc-derive.workspace = true
 hex.workspace = true
 tradez-types.workspace = true
 tradez-kernel.workspace = true
+tezos-smart-rollup.workspace = true
+tezos-smart-rollup-host.workspace = true
+rlp.workspace = true

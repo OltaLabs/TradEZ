@@ -13,6 +13,7 @@ tezos-smart-rollup-host.workspace = true
 tezos_data_encoding.workspace = true
 nom.workspace = true
 tradez-types.workspace = true
+rlp.workspace = true
 
 [dev-dependencies]
 tezos-smart-rollup.workspace = true

@@ -25,7 +25,8 @@ impl L1Node {
             .expect("Failed to pick unused port for L1 node metrics");
         let rpc_port = pick_unused_port((metrics_port + 1)..18000)
             .expect("Failed to pick unused port for L1 node rpc");
-        let node_data_dir = TempDir::with_suffix("tradez_l1_node").expect("Failed to create temp dir for L1 node data");
+        let node_data_dir = TempDir::with_suffix("tradez_l1_node")
+            .expect("Failed to create temp dir for L1 node data");
         let thread = thread::spawn(move || {
             let mut command = Command::new("octez-node");
             command

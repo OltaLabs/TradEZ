@@ -39,6 +39,7 @@ serde_json = "1.0"
 jsonrpc-core = "18.0"
 jsonrpc-http-server = "18.0"
 jsonrpc-derive = "18.0"
-jsonrpc-core-client = "18.0"
+jsonrpc-core-client = { version = "18.0", features = ["http"] }
+rlp = { version = "0.6.1", features = ["derive"] }
 hex = "0.4"
 rand = "0.8"

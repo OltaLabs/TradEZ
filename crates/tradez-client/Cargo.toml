@@ -15,3 +15,4 @@ jsonrpc-derive.workspace = true
 jsonrpc-core-client.workspace = true
 hex.workspace = true
 rand.workspace = true
+tradez-types.workspace = true

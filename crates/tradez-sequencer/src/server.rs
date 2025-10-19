@@ -1,14 +1,11 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::ServerBuilder;
+use rlp::Encodable;
 use serde::Deserialize;
-use tradez_types::position::Order;
+use tradez_kernel::kernel_loop;
 
-#[derive(Debug, Deserialize)]
-pub struct SendOrder {
-    pub order: Order,
-    pub signature: String,
-}
+use crate::host::SequencerHost;
 
 #[derive(Debug, Deserialize)]
 pub struct CancelOrder {
@@ -19,7 +16,7 @@ pub struct CancelOrder {
 #[rpc(server)]
 pub trait TradezRpc {
     #[rpc(name = "send_order")]
-    fn send_order(&self, params: SendOrder) -> Result<String>;
+    fn send_order(&self, side: u8, size: u64, price: u64, signature: String) -> Result<String>;
 
     #[rpc(name = "cancel_order")]
     fn cancel_order(&self, params: CancelOrder) -> Result<String>;
@@ -28,9 +25,23 @@ pub trait TradezRpc {
 pub struct TradezRpcImpl;
 
 impl TradezRpc for TradezRpcImpl {
-    fn send_order(&self, params: SendOrder) -> Result<String> {
-        println!("Received order: {:?}", params.order);
-        println!("With signature: {}", params.signature);
+    fn send_order(&self, side: u8, size: u64, price: u64, signature: String) -> Result<String> {
+        println!(
+            "Received order: side={}, size={}, price={}",
+            side, size, price
+        );
+        let encoded_order = tradez_types::position::APIOrder {
+            side,
+            size,
+            price,
+            signature: signature.clone(),
+        };
+        let rlp_encoded = encoded_order.rlp_bytes().to_vec();
+        let mut host = SequencerHost {
+            inputs: vec![rlp_encoded].into(),
+        };
+        kernel_loop(&mut host);
+        println!("With signature: {}", signature);
         Ok(String::from("Order received"))
     }
 
@@ -41,7 +52,7 @@ impl TradezRpc for TradezRpcImpl {
     }
 }
 
-pub fn launch_server() -> std::io::Result<()> {
+pub fn launch_server(rpc_port: u16) -> std::io::Result<()> {
     println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl;
@@ -51,9 +62,9 @@ pub fn launch_server() -> std::io::Result<()> {
 
     let server = ServerBuilder::new(io)
         .threads(4)
-        .start_http(&"127.0.0.1:8545".parse().unwrap())?;
+        .start_http(&format!("127.0.0.1:{}", rpc_port).parse().unwrap())?;
 
-    println!("JSON-RPC server running on http://127.0.0.1:8545");
+    println!("JSON-RPC server running on http://127.0.0.1:{}", rpc_port);
     println!("Available methods:");
     println!("  - send_order");
     println!("  - cancel_order");

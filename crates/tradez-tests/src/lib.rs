@@ -1,4 +1,9 @@
 #[cfg(test)]
+mod client;
+#[cfg(test)]
+mod sequencer;
+
+#[cfg(test)]
 mod tests {
     use std::path::Path;
 
@@ -11,21 +16,20 @@ mod tests {
             print_commands: true,
             verbose: true,
         });
-        std::thread::sleep(std::time::Duration::from_secs(5));
-        let client = tradez_octez::client::Client::new_with_temp_dir(
+        let octez_client = tradez_octez::client::Client::new_with_temp_dir(
             tradez_octez::client::ClientConfig {
                 print_commands: true,
                 verbose: true,
             },
             Some(format!("http://localhost:{}", node.rpc_port)),
         );
-        client.import_accounts_from_file(std::path::Path::new("accounts.json"));
-        client.activate_protocol(
+        octez_client.import_accounts_from_file(std::path::Path::new("accounts.json"));
+        octez_client.activate_protocol(
             std::path::Path::new("sandbox_parameters.json"),
             "PtSeouLouXkxhg39oWzjxDWaCydNfR3RxCUrNe4Q9Ro8BTehcbh",
         );
         let mut smart_rollup_node = tradez_octez::smart_rollup_node::SmartRollupNode::new(
-            Path::new(client.data_dir()),
+            Path::new(octez_client.data_dir()),
             tradez_octez::smart_rollup_node::SmartRollupNodeConfig {
                 print_commands: true,
                 verbose: true,
@@ -44,7 +48,7 @@ mod tests {
                 verbose: true,
             },
         );
-        client.originate_smart_roll_up(
+        octez_client.originate_smart_roll_up(
             "tradez_rollup",
             "bootstrap1",
             smart_rollup_node
@@ -52,12 +56,25 @@ mod tests {
                 .join("tradez_kernel_installer.hex")
                 .as_path(),
         );
-        client.bake_l1_blocks(2);
+        octez_client.bake_l1_blocks(1);
         smart_rollup_node.start("bootstrap1");
-        for _ in 0..5 {
-            client.bake_l1_blocks(1);
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
+        octez_client.bake_l1_blocks(1);
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let mut sequencer = crate::sequencer::Sequencer::new(crate::sequencer::SequencerConfig {
+            print_commands: true,
+            verbose: true,
+        });
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let tradez_client = crate::client::Client::new(
+            crate::client::ClientConfig {
+                print_commands: true,
+                verbose: true,
+            },
+            sequencer.rpc_port,
+        );
+        tradez_client.buy(10, 1000);
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        sequencer.stop();
         smart_rollup_node.stop();
         node.stop();
     }

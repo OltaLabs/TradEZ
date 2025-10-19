@@ -15,10 +15,9 @@ pub struct SmartRollupNodeConfig {
     pub verbose: bool,
 }
 
-
 impl SmartRollupNode {
     pub fn new(base_dir_path: &Path, config: SmartRollupNodeConfig, l1_rpc_addr: String) -> Self {
-                let data_dir = TempDir::with_suffix("tradez_smart_rollup_node")
+        let data_dir = TempDir::with_suffix("tradez_smart_rollup_node")
             .expect("Failed to create temp dir for smart rollup node data");
         SmartRollupNode {
             base_dir_path: base_dir_path.to_path_buf(),
@@ -66,9 +65,6 @@ impl SmartRollupNode {
             .arg("--log-kernel-debug")
             .arg("--log-kernel-debug-file")
             .arg(self.data_path().join("tradez_kernel.debug"));
-        dbg!(command.get_args().into_iter().map(|a| {
-            a.display().to_string()
-        }).collect::<Vec<_>>().join(" "));
         if self.config.verbose {
             command.stdout(std::process::Stdio::inherit());
             command.stderr(std::process::Stdio::inherit());
@@ -87,7 +83,9 @@ impl SmartRollupNode {
 
     pub fn stop(&mut self) {
         if let Some(child) = &mut self.child {
-            child.kill().expect("Failed to kill smart rollup node process");
+            child
+                .kill()
+                .expect("Failed to kill smart rollup node process");
             child
                 .wait()
                 .expect("Failed to wait for smart rollup node process to exit");

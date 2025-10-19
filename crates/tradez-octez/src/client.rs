@@ -25,7 +25,8 @@ impl Client {
     }
 
     pub fn new_with_temp_dir(config: ClientConfig, rpc_addr: Option<String>) -> Self {
-        let temp_dir = tempfile::TempDir::with_suffix("tradez_client").expect("Failed to create temp dir for client data");
+        let temp_dir = tempfile::TempDir::with_suffix("tradez_octez_client")
+            .expect("Failed to create temp dir for client data");
         let rpc_addr = rpc_addr.unwrap_or_else(|| "http://localhost:8732".into());
         Client {
             data_dir: temp_dir.path().to_str().unwrap().to_string(),

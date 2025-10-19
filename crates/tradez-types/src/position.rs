@@ -1,9 +1,18 @@
 use alloy_primitives::Address;
+use rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 pub type Price = u64; // microUSDC par XTZ (1e6)
 pub type Qty = u64; // microXTZ (1e6)
 pub type Ts = u64; // timestamp fourni par l'input (déterministe)
+
+#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+pub struct APIOrder {
+    pub side: u8, // 0 = buy, 1 = sell
+    pub size: u64,
+    pub price: u64,
+    pub signature: String,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Order {
