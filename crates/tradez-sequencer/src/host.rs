@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use redb::{Database, ReadableDatabase, TableDefinition};
 use tezos_smart_rollup::{inbox::InboxMessage, michelson::MichelsonUnit};
 use tezos_smart_rollup_host::{
     dal_parameters::RollupDalParameters,
@@ -8,8 +9,21 @@ use tezos_smart_rollup_host::{
     runtime::{Runtime, RuntimeError},
 };
 
+const TABLE: TableDefinition<&str, Vec<u8>> = TableDefinition::new("my_data");
+
 pub struct SequencerHost {
     pub inputs: VecDeque<Vec<u8>>,
+    pub db: Database,
+}
+
+impl SequencerHost {
+    pub fn new(inputs: Vec<Vec<u8>>) -> Self {
+        let db = Database::create("my_db.redb").unwrap();
+        Self {
+            db,
+            inputs: inputs.into_iter().collect(),
+        }
+    }
 }
 
 impl Runtime for SequencerHost {
@@ -134,9 +148,13 @@ impl Runtime for SequencerHost {
 
     fn store_read_all(
         &self,
-        _path: &impl tezos_smart_rollup_host::path::Path,
+        path: &impl tezos_smart_rollup_host::path::Path,
     ) -> Result<Vec<u8>, RuntimeError> {
-        unimplemented!()
+        let read_txn = self.db.begin_read().unwrap();
+        let Ok(table) = read_txn.open_table(TABLE) else {
+            return Err(RuntimeError::PathNotFound);
+        };
+        Ok(table.get(path.to_string().as_str()).unwrap().unwrap().value())
     }
 
     fn store_read_slice<T: tezos_smart_rollup_host::path::Path>(
@@ -166,10 +184,16 @@ impl Runtime for SequencerHost {
 
     fn store_write_all<T: tezos_smart_rollup_host::path::Path>(
         &mut self,
-        _path: &T,
-        _src: &[u8],
+        path: &T,
+        src: &[u8],
     ) -> Result<(), RuntimeError> {
-        unimplemented!()
+        let write_txn = self.db.begin_write().unwrap();
+        {
+            let mut table = write_txn.open_table(TABLE).unwrap();
+            table.insert(path.to_string().as_str(), src.to_vec()).unwrap();
+        }
+        write_txn.commit().unwrap();
+        Ok(())
     }
 
     fn upgrade_failed(&self) -> Result<bool, RuntimeError> {

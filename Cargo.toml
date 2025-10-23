@@ -41,3 +41,4 @@ rlp = { version = "0.6.1", features = ["derive"] }
 hex = "0.4"
 rand = "0.8"
 thiserror = "2.0.17"
+redb = "3.1.0"

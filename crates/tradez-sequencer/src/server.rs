@@ -21,9 +21,7 @@ impl TradezRpcServer for TradezRpcImpl {
         );
         let rlp_encoded = api_order.rlp_bytes().to_vec();
         let inputs = vec![rlp_encoded.clone()];
-        let mut host = SequencerHost {
-            inputs: inputs.iter().cloned().collect(),
-        };
+        let mut host = SequencerHost::new(inputs.clone());
         kernel_loop(&mut host);
         if let Err(e) = self
             .smart_rollup_node_client

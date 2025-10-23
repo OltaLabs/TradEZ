@@ -17,3 +17,4 @@ tradez-octez.workspace = true
 tezos-smart-rollup.workspace = true
 tezos-smart-rollup-host.workspace = true
 rlp.workspace = true
+redb.workspace = true
