@@ -1,6 +1,8 @@
+use std::time::Instant;
+
 use clap::{Parser, Subcommand};
 use jsonrpsee::http_client::HttpClientBuilder;
-use tradez_types::{TradezRpcClient, position::APIOrder};
+use tradez_types::{api::TradezRpcClient, position::APIOrder};
 
 pub mod wallet;
 
@@ -105,7 +107,13 @@ async fn main() {
                     let result = TradezRpcClient::send_order(
                         &client,
                         APIOrder {
-                            side,
+                            side: if side == 0 {
+                                tradez_types::position::Side::Bid
+                            } else {
+                                tradez_types::position::Side::Ask
+                            },
+                            // TODO: Fix
+                            ts: Instant::now().elapsed().as_millis() as u64,
                             size,
                             price,
                             signature: signature.to_string(),

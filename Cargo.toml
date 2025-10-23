@@ -10,6 +10,7 @@ members = [
 ]
 
 [workspace.dependencies]
+async-trait = "0.1.89"
 tradez-octez = { package = "tradez-octez", path = "./crates/tradez-octez" }
 tradez-types = { package = "tradez-types", path = "./crates/tradez-types" }
 tradez-kernel = { package = "tradez-kernel", path = "./crates/tradez-kernel" }

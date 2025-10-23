@@ -13,4 +13,4 @@ serde_json.workspace = true
 jsonrpsee.workspace = true
 hex.workspace = true
 rand.workspace = true
-tradez-types.workspace = true
+tradez-types = { workspace = true, features = ["api"] }

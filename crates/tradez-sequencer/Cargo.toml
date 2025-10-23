@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait.workspace = true
 clap.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 jsonrpsee.workspace = true
 hex.workspace = true
-tradez-types.workspace = true
+tradez-types = { workspace = true, features = ["api"] }
 tradez-kernel.workspace = true
 tradez-octez.workspace = true
 tezos-smart-rollup.workspace = true
 tezos-smart-rollup-host.workspace = true
 rlp.workspace = true
-async-trait = "0.1.89"

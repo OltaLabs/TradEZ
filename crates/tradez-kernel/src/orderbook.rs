@@ -1,7 +1,14 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use alloy_primitives::Address;
-use tradez_types::position::{OrdType, Order, Price, Qty, Side, Ts};
+use rlp::{Decodable, Encodable};
+use tezos_smart_rollup::host::{Runtime, RuntimeError};
+use tezos_smart_rollup_host::path::RefPath;
+use tradez_types::{
+    address::Address,
+    position::{OrdType, Order, Price, Qty, Side, Ts},
+};
+
+use crate::error::KernelError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -26,17 +33,101 @@ pub enum Event {
     },
 }
 
+pub type SideLadder = BTreeMap<Price, VecDeque<Order>>;
+
 #[derive(Default)]
 pub struct OrderBook {
     // asks : prix croissant ; bids : prix croissant (on itère à rebours pour best bid)
-    asks: BTreeMap<Price, VecDeque<Order>>,
-    bids: BTreeMap<Price, VecDeque<Order>>,
+    asks: SideLadder,
+    bids: SideLadder,
     next_id: u64,
 }
+
+impl Encodable for OrderBook {
+    fn rlp_append(&self, s: &mut rlp::RlpStream) {
+        s.begin_list(3);
+        s.begin_list(self.asks.len());
+        for (price, queue) in &self.asks {
+            s.begin_list(2);
+            s.append(price);
+            s.begin_list(queue.len());
+            for order in queue {
+                s.append(order);
+            }
+        }
+        s.begin_list(self.bids.len());
+        for (price, queue) in &self.bids {
+            s.begin_list(2);
+            s.append(price);
+            s.begin_list(queue.len());
+            for order in queue {
+                s.append(order);
+            }
+        }
+        s.append(&self.next_id);
+    }
+}
+
+impl Decodable for OrderBook {
+    fn decode(rlp: &rlp::Rlp) -> Result<Self, rlp::DecoderError> {
+        let mut ob = OrderBook::default();
+
+        let asks_rlp = rlp.at(0)?;
+        for i in 0..asks_rlp.item_count()? {
+            let level_rlp = asks_rlp.at(i)?;
+            let price: Price = level_rlp.at(0)?.as_val()?;
+            let orders_rlp = level_rlp.at(1)?;
+            let mut queue = VecDeque::new();
+            for j in 0..orders_rlp.item_count()? {
+                let order: Order = orders_rlp.at(j)?.as_val()?;
+                queue.push_back(order);
+            }
+            ob.asks.insert(price, queue);
+        }
+
+        let bids_rlp = rlp.at(1)?;
+        for i in 0..bids_rlp.item_count()? {
+            let level_rlp = bids_rlp.at(i)?;
+            let price: Price = level_rlp.at(0)?.as_val()?;
+            let orders_rlp = level_rlp.at(1)?;
+            let mut queue = VecDeque::new();
+            for j in 0..orders_rlp.item_count()? {
+                let order: Order = orders_rlp.at(j)?.as_val()?;
+                queue.push_back(order);
+            }
+            ob.bids.insert(price, queue);
+        }
+
+        ob.next_id = rlp.at(2)?.as_val()?;
+
+        Ok(ob)
+    }
+}
+
+const ORDER_BOOK_PATH: RefPath = RefPath::assert_from(b"/tradez/order_book");
 
 impl OrderBook {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn load<Host: Runtime>(host: &mut Host) -> Result<Self, KernelError> {
+        match host.store_read_all(&ORDER_BOOK_PATH) {
+            Ok(data) => {
+                let rlp = rlp::Rlp::new(&data);
+                OrderBook::decode(&rlp).map_err(|e| KernelError::DataStoreReadError(e.to_string()))
+            }
+            Err(RuntimeError::PathNotFound) => Ok(OrderBook::new()),
+            Err(e) => Err(KernelError::DataStoreReadError(e.to_string())),
+        }
+    }
+
+    pub fn save<Host: Runtime>(&self, host: &mut Host) -> Result<(), KernelError> {
+        let mut stream = rlp::RlpStream::new();
+        self.rlp_append(&mut stream);
+        let data = stream.out().to_vec();
+        host.store_write_all(&ORDER_BOOK_PATH, &data)
+            .map_err(|e| KernelError::DataStoreReadError(e.to_string()))
     }
 
     pub fn best_bid(&self) -> Option<Price> {

@@ -1,14 +1,4 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-
-use crate::position::{APIOrder, CancelOrder};
-
+pub mod address;
+#[cfg(feature = "api")]
+pub mod api;
 pub mod position;
-
-#[rpc(client, server)]
-pub trait TradezRpc {
-    #[method(name = "send_order")]
-    async fn send_order(&self, api_order: APIOrder) -> RpcResult<String>;
-
-    #[method(name = "cancel_order")]
-    async fn cancel_order(&self, params: CancelOrder) -> RpcResult<String>;
-}

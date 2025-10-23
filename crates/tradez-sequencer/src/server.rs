@@ -2,7 +2,7 @@ use jsonrpsee::{core::RpcResult, server::ServerBuilder};
 use rlp::Encodable;
 use tradez_kernel::kernel_loop;
 use tradez_types::{
-    TradezRpcServer,
+    api::TradezRpcServer,
     position::{APIOrder, CancelOrder},
 };
 

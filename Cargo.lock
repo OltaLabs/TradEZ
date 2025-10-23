@@ -4681,6 +4681,7 @@ dependencies = [
  "tezos-smart-rollup",
  "tezos-smart-rollup-host",
  "tezos_data_encoding 0.5.2",
+ "thiserror 2.0.17",
  "tradez-types",
 ]
 
