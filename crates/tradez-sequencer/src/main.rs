@@ -7,11 +7,14 @@ mod server;
 pub struct Args {
     #[clap(long, default_value_t = 8545)]
     pub rpc_port: u16,
+
+    #[clap(long, default_value_t = String::from("http://localhost:8732"))]
+    pub smart_rollup_addr: String,
 }
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let args = Args::parse();
-    server::launch_server(args.rpc_port)?;
+    server::launch_server(args.rpc_port, args.smart_rollup_addr).await?;
     Ok(())
 }

@@ -64,6 +64,7 @@ mod tests {
         let mut sequencer = crate::sequencer::Sequencer::new(crate::sequencer::SequencerConfig {
             print_commands: true,
             verbose: true,
+            smart_rollup_node_address: smart_rollup_node.rpc_addr(),
         });
         std::thread::sleep(std::time::Duration::from_secs(1));
         let tradez_client = crate::client::Client::new(
@@ -74,7 +75,9 @@ mod tests {
             sequencer.rpc_port,
         );
         tradez_client.buy(10, 1000);
-        std::thread::sleep(std::time::Duration::from_secs(5));
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        octez_client.bake_l1_blocks(2);
+        std::thread::sleep(std::time::Duration::from_secs(3));
         sequencer.stop();
         smart_rollup_node.stop();
         node.stop();

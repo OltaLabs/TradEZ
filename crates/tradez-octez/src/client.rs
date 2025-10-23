@@ -210,6 +210,7 @@ impl Client {
             .arg("for")
             .arg("--minimal-timestamp");
         for _ in 0..count {
+            std::thread::sleep(std::time::Duration::from_millis(500));
             if self.config.verbose {
                 command.stdout(std::process::Stdio::piped());
                 command.stderr(std::process::Stdio::piped());

@@ -8,6 +8,7 @@ pub struct SmartRollupNode {
     child: Option<std::process::Child>,
     data_dir: TempDir,
     l1_rpc_addr: String,
+    rpc_port: u16,
 }
 
 pub struct SmartRollupNodeConfig {
@@ -19,9 +20,12 @@ impl SmartRollupNode {
     pub fn new(base_dir_path: &Path, config: SmartRollupNodeConfig, l1_rpc_addr: String) -> Self {
         let data_dir = TempDir::with_suffix("tradez_smart_rollup_node")
             .expect("Failed to create temp dir for smart rollup node data");
+        let rpc_port = openport::pick_unused_port(15500..16000)
+            .expect("Failed to pick unused port for smart rollup node rpc");
         SmartRollupNode {
             base_dir_path: base_dir_path.to_path_buf(),
             config,
+            rpc_port,
             child: None,
             data_dir,
             l1_rpc_addr,
@@ -38,9 +42,7 @@ impl SmartRollupNode {
 
     pub fn start(&mut self, operator: &str) {
         let mut command = std::process::Command::new("octez-smart-rollup-node");
-        let rpc_port = openport::pick_unused_port(15500..16000)
-            .expect("Failed to pick unused port for smart rollup node rpc");
-        let metrics_port = openport::pick_unused_port((rpc_port + 1)..17000)
+        let metrics_port = openport::pick_unused_port((self.rpc_port + 1)..17000)
             .expect("Failed to pick unused port for smart rollup node metrics");
         command
             .arg("--endpoint")
@@ -57,14 +59,14 @@ impl SmartRollupNode {
             .arg("--data-dir")
             .arg(self.data_dir.path())
             .arg("--rpc-port")
-            .arg(rpc_port.to_string())
+            .arg(self.rpc_port.to_string())
             .arg("--rpc-addr")
             .arg("127.0.0.1")
             .arg("--metrics-addr")
             .arg(format!("127.0.0.1:{}", metrics_port))
             .arg("--log-kernel-debug")
             .arg("--log-kernel-debug-file")
-            .arg(self.data_path().join("tradez_kernel.debug"));
+            .arg("tradez_kernel.debug");
         if self.config.verbose {
             command.stdout(std::process::Stdio::inherit());
             command.stderr(std::process::Stdio::inherit());
@@ -90,6 +92,49 @@ impl SmartRollupNode {
                 .wait()
                 .expect("Failed to wait for smart rollup node process to exit");
             self.child = None;
+        }
+    }
+
+    pub fn rpc_addr(&self) -> String {
+        format!("http://127.0.0.1:{}", self.rpc_port)
+    }
+}
+
+pub struct SmartRollupClient {
+    client: reqwest::Client,
+    api_addr: String,
+}
+
+impl SmartRollupClient {
+    pub fn new(api_addr: &str) -> Self {
+        SmartRollupClient {
+            api_addr: api_addr.to_string(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    pub async fn inject_inbox_messages(
+        &self,
+        inbox_message: Vec<Vec<u8>>,
+    ) -> Result<(), crate::error::OctezError> {
+        let res = self
+            .client
+            .post(format!("{}/local/batcher/injection", self.api_addr))
+            .json(
+                &inbox_message
+                    .into_iter()
+                    .map(hex::encode)
+                    .collect::<Vec<String>>(),
+            )
+            .send()
+            .await
+            .unwrap();
+
+        if res.status() == 200 {
+            Ok(())
+        } else {
+            let err_text = res.text().await.unwrap();
+            Err(crate::error::OctezError::HttpResponseError(err_text))
         }
     }
 }

@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
-use jsonrpc_core_client::{RpcChannel, RpcResult, TypedClient};
+use jsonrpsee::http_client::HttpClientBuilder;
+use tradez_types::{TradezRpcClient, position::APIOrder};
 
 pub mod wallet;
 
@@ -68,31 +69,6 @@ enum WalletCommand {
     },
 }
 
-#[derive(Clone)]
-struct TestClient(TypedClient);
-
-impl From<RpcChannel> for TestClient {
-    fn from(channel: RpcChannel) -> Self {
-        TestClient(channel.into())
-    }
-}
-
-impl TestClient {
-    fn open_position(
-        &self,
-        side: u8,
-        size: u64,
-        price: u64,
-        signature: &str,
-    ) -> impl std::future::Future<Output = RpcResult<String>> {
-        self.0.call_method(
-            "send_order",
-            "String",
-            (side, size, price, signature.to_string()),
-        )
-    }
-}
-
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -102,10 +78,7 @@ async fn main() {
         AppSubcommand::Wallet(wallet_cmd) => {
             let wallet =
                 wallet::load_wallet(&wallet_cmd.dirpath, &wallet_cmd.name, wallet_cmd.password);
-            let jsonrpc_client: TestClient =
-                jsonrpc_core_client::transports::http::connect(&server_url)
-                    .await
-                    .unwrap();
+            let client = HttpClientBuilder::new().build(server_url).unwrap();
 
             match wallet_cmd.command {
                 WalletCommand::Create {} => {
@@ -129,10 +102,17 @@ async fn main() {
                         side, size, price, wallet_cmd.name
                     );
                     let signature = "dummy_signature"; // Replace with actual signature logic
-                    let result = jsonrpc_client
-                        .open_position(side, size, price, signature)
-                        .await
-                        .expect("RPC call failed");
+                    let result = TradezRpcClient::send_order(
+                        &client,
+                        APIOrder {
+                            side,
+                            size,
+                            price,
+                            signature: signature.to_string(),
+                        },
+                    )
+                    .await
+                    .unwrap();
                     println!("Result from server: {}", result);
                 }
                 WalletCommand::ClosePosition { position_id } => {

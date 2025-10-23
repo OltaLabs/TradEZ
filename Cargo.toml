@@ -20,6 +20,7 @@ alloy-signer-local = { version = "1.0.41", features = ["keystore"] }
 alloy-primitives = { version = "1.2.0", default-features = false, features = ["rlp", "serde"] }
 clap = { version = "4.5", features = ["derive"] }
 nom = "7.1"
+reqwest = { version = "0.12.24", features = ["json"] }
 tezos_data_encoding = "0.5"
 tezos-smart-rollup = { git = "https://gitlab.com/tezos/tezos.git", default-features = false, features = [
   "std",
@@ -31,15 +32,11 @@ tezos-smart-rollup = { git = "https://gitlab.com/tezos/tezos.git", default-featu
   "testing",
 ] }
 tezos-smart-rollup-host = { git = "https://gitlab.com/tezos/tezos.git" }
-
-
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-jsonrpc-core = "18.0"
-jsonrpc-http-server = "18.0"
-jsonrpc-derive = "18.0"
-jsonrpc-core-client = { version = "18.0", features = ["http"] }
+jsonrpsee = { version = "0.26.0", features = ["server", "http-client", "macros"] }
 rlp = { version = "0.6.1", features = ["derive"] }
 hex = "0.4"
 rand = "0.8"
+thiserror = "2.0.17"

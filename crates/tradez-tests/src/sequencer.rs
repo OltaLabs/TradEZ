@@ -3,6 +3,7 @@ use std::process::Command;
 pub struct SequencerConfig {
     pub print_commands: bool,
     pub verbose: bool,
+    pub smart_rollup_node_address: String,
 }
 
 pub struct Sequencer {
@@ -15,6 +16,9 @@ impl Sequencer {
         let rpc_port = openport::pick_unused_port(19000..20000).expect("Failed to find free port");
         let mut command = Command::new("../../target/release/tradez-sequencer");
         command.arg("--rpc-port").arg(rpc_port.to_string());
+        command
+            .arg("--smart-rollup-addr")
+            .arg(config.smart_rollup_node_address);
         if config.verbose {
             command.stdout(std::process::Stdio::inherit());
             command.stderr(std::process::Stdio::inherit());

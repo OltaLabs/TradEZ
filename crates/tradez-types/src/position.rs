@@ -14,6 +14,12 @@ pub struct APIOrder {
     pub signature: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CancelOrder {
+    pub order_id: u64,
+    pub signature: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Order {
     pub id: u64,
