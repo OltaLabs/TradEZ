@@ -4734,9 +4734,12 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "openport",
+ "rlp 0.6.1",
  "serde",
  "tempfile",
+ "tokio",
  "tradez-octez",
+ "tradez-types",
 ]
 
 [[package]]
@@ -4747,6 +4750,9 @@ dependencies = [
  "jsonrpsee",
  "rlp 0.6.1",
  "serde",
+ "tezos-smart-rollup",
+ "tezos-smart-rollup-host",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

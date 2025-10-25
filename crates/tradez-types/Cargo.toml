@@ -8,6 +8,9 @@ alloy-primitives.workspace = true
 serde.workspace = true
 rlp.workspace = true
 jsonrpsee = { workspace = true, optional = true }
+tezos-smart-rollup.workspace = true
+tezos-smart-rollup-host.workspace = true
+thiserror.workspace = true
 
 [features]
 default = []

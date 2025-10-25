@@ -3,10 +3,7 @@ extern crate alloc;
 use tezos_smart_rollup::inbox::InboxMessage;
 use tezos_smart_rollup::michelson::MichelsonBytes;
 use tezos_smart_rollup::prelude::*;
-use tradez_types::{address::Address, position::APIOrder};
-
-mod error;
-mod orderbook;
+use tradez_types::{address::Address, orderbook::OrderBook, position::APIOrder};
 
 fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
     if let Some((_, msg)) = InboxMessage::<MichelsonBytes>::parse(msg.as_ref()).ok() {
@@ -17,7 +14,7 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                     "Received Order: side={}, size={}, price={}\n",
                     order.side, order.size, order.price
                 ));
-                let mut orderbook = orderbook::OrderBook::load(host).unwrap();
+                let mut orderbook = OrderBook::load(host).unwrap();
                 let mut events = vec![];
                 orderbook.place_limit(
                     Address::ZERO,

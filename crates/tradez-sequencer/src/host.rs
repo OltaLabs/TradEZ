@@ -17,8 +17,8 @@ pub struct SequencerHost {
 }
 
 impl SequencerHost {
-    pub fn new(inputs: Vec<Vec<u8>>) -> Self {
-        let db = Database::create("my_db.redb").unwrap();
+    pub fn new(inputs: Vec<Vec<u8>>, data_dir:String) -> Self {
+        let db = Database::create(format!("{}/my_db.redb", data_dir)).unwrap();
         Self {
             db,
             inputs: inputs.into_iter().collect(),

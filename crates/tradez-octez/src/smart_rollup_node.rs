@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
 use tempfile::TempDir;
+
+use crate::error::OctezError;
 
 pub struct SmartRollupNode {
     base_dir_path: PathBuf,
@@ -105,6 +108,22 @@ pub struct SmartRollupClient {
     api_addr: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ValueError {
+    pub kind: String,
+    pub id: String,
+    pub block: Option<String>,
+    pub msg: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ValueResponse {
+    Value(String),
+    Errors(Vec<ValueError>),
+}
+
+
 impl SmartRollupClient {
     pub fn new(api_addr: &str) -> Self {
         SmartRollupClient {
@@ -116,7 +135,7 @@ impl SmartRollupClient {
     pub async fn inject_inbox_messages(
         &self,
         inbox_message: Vec<Vec<u8>>,
-    ) -> Result<(), crate::error::OctezError> {
+    ) -> Result<(), OctezError> {
         let res = self
             .client
             .post(format!("{}/local/batcher/injection", self.api_addr))
@@ -135,6 +154,38 @@ impl SmartRollupClient {
         } else {
             let err_text = res.text().await.unwrap();
             Err(crate::error::OctezError::HttpResponseError(err_text))
+        }
+    }
+
+    pub async fn get_value(&self, key: &str) -> Result<Option<Vec<u8>>, OctezError> {
+        let res = self
+            .client
+            .get(format!(
+                "{}/global/block/head/durable/wasm_2_0_0/value?key={}",
+                self.api_addr, key
+            ))
+            .send()
+            .await?;
+
+        if res.status() == 200 || res.status() == 500 {
+            let content: Option<ValueResponse> = res.json().await?;
+            match content {
+                Some(ValueResponse::Value(value)) => {
+                    let payload = hex::decode(value)?;
+                    Ok(Some(payload))
+                }
+                Some(ValueResponse::Errors(errors)) => Err(OctezError::HttpResponseError(format!(
+                    "Failed to get value of key-value pair: {}. Errors: {:?}",
+                    key,
+                    errors
+                ))),
+                None => Ok(None),
+            }
+        } else {
+            Err(OctezError::HttpResponseError(format!(
+                "Unhandled response status: {}",
+                res.status()
+            )))
         }
     }
 }

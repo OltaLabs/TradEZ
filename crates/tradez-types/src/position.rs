@@ -24,7 +24,7 @@ pub struct CancelOrder {
     pub signature: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, RlpDecodable, RlpEncodable)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]
 pub struct Order {
     pub id: u64,
     pub user: Address,
@@ -54,8 +54,8 @@ impl Display for Side {
 impl Encodable for Side {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
         match self {
-            Side::Bid => s.append(&0u8),
-            Side::Ask => s.append(&1u8),
+            Side::Bid => s.append_internal(&0u8),
+            Side::Ask => s.append_internal(&1u8),
         };
     }
 }
@@ -80,8 +80,8 @@ pub enum OrdType {
 impl Encodable for OrdType {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
         match self {
-            OrdType::Limit => s.append(&0u8),
-            OrdType::Market => s.append(&1u8),
+            OrdType::Limit => s.append_internal(&0u8),
+            OrdType::Market => s.append_internal(&1u8),
         };
     }
 }

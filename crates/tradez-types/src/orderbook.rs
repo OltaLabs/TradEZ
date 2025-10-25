@@ -3,12 +3,9 @@ use std::collections::{BTreeMap, VecDeque};
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::RefPath;
-use tradez_types::{
-    address::Address,
-    position::{OrdType, Order, Price, Qty, Side, Ts},
+use crate::{
+    address::Address, error::TradezError, position::{OrdType, Order, Price, Qty, Side, Ts}
 };
-
-use crate::error::KernelError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -35,7 +32,7 @@ pub enum Event {
 
 pub type SideLadder = BTreeMap<Price, VecDeque<Order>>;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct OrderBook {
     // asks : prix croissant ; bids : prix croissant (on itère à rebours pour best bid)
     asks: SideLadder,
@@ -46,6 +43,7 @@ pub struct OrderBook {
 impl Encodable for OrderBook {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
         s.begin_list(3);
+        // Asks
         s.begin_list(self.asks.len());
         for (price, queue) in &self.asks {
             s.begin_list(2);
@@ -55,6 +53,7 @@ impl Encodable for OrderBook {
                 s.append(order);
             }
         }
+        // Bids
         s.begin_list(self.bids.len());
         for (price, queue) in &self.bids {
             s.begin_list(2);
@@ -71,63 +70,63 @@ impl Encodable for OrderBook {
 impl Decodable for OrderBook {
     fn decode(rlp: &rlp::Rlp) -> Result<Self, rlp::DecoderError> {
         let mut ob = OrderBook::default();
-
-        let asks_rlp = rlp.at(0)?;
-        for i in 0..asks_rlp.item_count()? {
-            let level_rlp = asks_rlp.at(i)?;
-            let price: Price = level_rlp.at(0)?.as_val()?;
-            let orders_rlp = level_rlp.at(1)?;
+        let mut it = rlp.iter();
+        let asks_rlp = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
+        for ask in asks_rlp.iter() {
+            let mut ask_it = ask.iter();
+            let price: Price = ask_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
+            let orders_rlp = ask_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
             let mut queue = VecDeque::new();
-            for j in 0..orders_rlp.item_count()? {
-                let order: Order = orders_rlp.at(j)?.as_val()?;
+            for order_rlp in orders_rlp.iter() {
+                let order: Order = Decodable::decode(&order_rlp)?;
                 queue.push_back(order);
             }
             ob.asks.insert(price, queue);
         }
 
-        let bids_rlp = rlp.at(1)?;
-        for i in 0..bids_rlp.item_count()? {
-            let level_rlp = bids_rlp.at(i)?;
-            let price: Price = level_rlp.at(0)?.as_val()?;
-            let orders_rlp = level_rlp.at(1)?;
+        let bids_rlp = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
+        for bid in bids_rlp.iter() {
+            let mut bid_it = bid.iter();
+            let price: Price = bid_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
+            let orders_rlp = bid_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
             let mut queue = VecDeque::new();
-            for j in 0..orders_rlp.item_count()? {
-                let order: Order = orders_rlp.at(j)?.as_val()?;
+            for order_rlp in orders_rlp.iter() {
+                let order: Order = Decodable::decode(&order_rlp)?;
                 queue.push_back(order);
             }
             ob.bids.insert(price, queue);
         }
-
-        ob.next_id = rlp.at(2)?.as_val()?;
+        ob.next_id = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
 
         Ok(ob)
     }
 }
 
-const ORDER_BOOK_PATH: RefPath = RefPath::assert_from(b"/tradez/order_book");
+pub const ORDER_BOOK_STR_PATH: &str = "/tradez/order_book";
+pub const ORDER_BOOK_PATH: RefPath = RefPath::assert_from(b"/tradez/order_book");
 
 impl OrderBook {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn load<Host: Runtime>(host: &mut Host) -> Result<Self, KernelError> {
+    pub fn load<Host: Runtime>(host: &mut Host) -> Result<Self, TradezError> {
         match host.store_read_all(&ORDER_BOOK_PATH) {
             Ok(data) => {
                 let rlp = rlp::Rlp::new(&data);
-                OrderBook::decode(&rlp).map_err(|e| KernelError::DataStoreReadError(e.to_string()))
+                OrderBook::decode(&rlp).map_err(|e| TradezError::DataStoreError(e.to_string()))
             }
             Err(RuntimeError::PathNotFound) => Ok(OrderBook::new()),
-            Err(e) => Err(KernelError::DataStoreReadError(e.to_string())),
+            Err(e) => Err(TradezError::DataStoreError(e.to_string())),
         }
     }
 
-    pub fn save<Host: Runtime>(&self, host: &mut Host) -> Result<(), KernelError> {
+    pub fn save<Host: Runtime>(&self, host: &mut Host) -> Result<(), TradezError> {
         let mut stream = rlp::RlpStream::new();
         self.rlp_append(&mut stream);
         let data = stream.out().to_vec();
         host.store_write_all(&ORDER_BOOK_PATH, &data)
-            .map_err(|e| KernelError::DataStoreReadError(e.to_string()))
+            .map_err(|e| TradezError::DataStoreError(e.to_string()))
     }
 
     pub fn best_bid(&self) -> Option<Price> {
@@ -370,6 +369,26 @@ mod tests {
         Address::from(a)
     }
 
+    fn compare_orderbooks(ob1: &OrderBook, ob2: &OrderBook) {
+        assert_eq!(ob1.next_id, ob2.next_id);
+        assert_eq!(ob1.asks.len(), ob2.asks.len());
+        for (price, queue1) in &ob1.asks {
+            let queue2 = ob2.asks.get(price).expect("ask price level exists");
+            assert_eq!(queue1.len(), queue2.len());
+            for (o1, o2) in queue1.iter().zip(queue2.iter()) {
+                assert_eq!(o1, o2);
+            }
+        }
+        assert_eq!(ob1.bids.len(), ob2.bids.len());
+        for (price, queue1) in &ob1.bids {
+            let queue2 = ob2.bids.get(price).expect("bid price level exists");
+            assert_eq!(queue1.len(), queue2.len());
+            for (o1, o2) in queue1.iter().zip(queue2.iter()) {
+                assert_eq!(o1, o2);
+            }
+        }
+    }
+
     #[test]
     fn limit_then_market_flow() {
         let mut ob = OrderBook::new();
@@ -416,5 +435,13 @@ mod tests {
         assert_eq!(ob.best_bid(), Some(3_400_000));
         let q = ob.bids.get(&3_400_000).unwrap();
         assert_eq!(q.front().unwrap().remaining, 300_000);
+
+        let bytes = {
+            let mut stream = rlp::RlpStream::new();
+            ob.rlp_append(&mut stream);
+            stream.out().to_vec()
+        };
+        let ob2 = OrderBook::decode(&rlp::Rlp::new(&bytes)).unwrap();
+        compare_orderbooks(&ob, &ob2);
     }
 }

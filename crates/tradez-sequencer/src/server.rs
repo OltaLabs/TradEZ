@@ -10,6 +10,7 @@ use crate::host::SequencerHost;
 
 pub struct TradezRpcImpl {
     pub smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient,
+    pub data_dir: String,
 }
 
 #[async_trait::async_trait]
@@ -21,7 +22,7 @@ impl TradezRpcServer for TradezRpcImpl {
         );
         let rlp_encoded = api_order.rlp_bytes().to_vec();
         let inputs = vec![rlp_encoded.clone()];
-        let mut host = SequencerHost::new(inputs.clone());
+        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
         kernel_loop(&mut host);
         if let Err(e) = self
             .smart_rollup_node_client
@@ -43,13 +44,14 @@ impl TradezRpcServer for TradezRpcImpl {
     }
 }
 
-pub async fn launch_server(rpc_port: u16, smart_rollup_addr: String) -> std::io::Result<()> {
+pub async fn launch_server(rpc_port: u16, smart_rollup_addr: String, data_dir: String) -> std::io::Result<()> {
     println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl {
         smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient::new(
             &smart_rollup_addr,
         ),
+        data_dir,
     };
 
     let server = ServerBuilder::default()

@@ -7,11 +7,13 @@ mod sequencer;
 mod tests {
     use std::path::Path;
 
+    use rlp::{Decodable, Rlp};
     use tradez_octez::l1_node::L1NodeConfig;
+    use tradez_types::orderbook::{OrderBook, ORDER_BOOK_STR_PATH};
 
     // Here you can write integration tests that use tradez (sequencer + client) and an L1 node + smart rollup node + tezos client
-    #[test]
-    fn basic_flow_works() {
+    #[tokio::test]
+    async fn basic_flow_works() {
         let mut node = tradez_octez::l1_node::L1Node::launch(L1NodeConfig {
             print_commands: true,
             verbose: true,
@@ -66,6 +68,9 @@ mod tests {
             verbose: true,
             smart_rollup_node_address: smart_rollup_node.rpc_addr(),
         });
+        let smart_rollup_client = tradez_octez::smart_rollup_node::SmartRollupClient::new(
+            &smart_rollup_node.rpc_addr()
+        );
         std::thread::sleep(std::time::Duration::from_secs(1));
         let tradez_client = crate::client::Client::new(
             crate::client::ClientConfig {
@@ -78,6 +83,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(3));
         octez_client.bake_l1_blocks(2);
         std::thread::sleep(std::time::Duration::from_secs(3));
+        let bytes = smart_rollup_client.get_value(ORDER_BOOK_STR_PATH).await.unwrap().unwrap();
+        println!("Raw order book bytes: {:?}", bytes);
+        let order_book = OrderBook::decode(&Rlp::new(&bytes)).unwrap();
+        println!("Order book after one buy: {:?}", order_book);
         sequencer.stop();
         smart_rollup_node.stop();
         node.stop();

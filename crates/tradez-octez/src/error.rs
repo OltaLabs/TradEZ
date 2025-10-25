@@ -6,4 +6,6 @@ pub enum OctezError {
     HttpRequestError(#[from] reqwest::Error),
     #[error("HTTP response error: {0}")]
     HttpResponseError(String),
+    #[error("Hex decoding error: {0}")]
+    HexDecodingError(#[from] hex::FromHexError),
 }

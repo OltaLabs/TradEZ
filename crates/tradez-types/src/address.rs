@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use rlp::{Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Address(pub alloy_primitives::Address);
 
 impl From<alloy_primitives::Address> for Address {
@@ -34,7 +34,7 @@ impl DerefMut for Address {
 
 impl Encodable for Address {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
-        s.append(&self.0.0.as_slice());
+        s.append_internal(&self.0.0.as_slice());
     }
 }
 
