@@ -9,13 +9,12 @@ pub type Price = u64; // microUSDC par XTZ (1e6)
 pub type Qty = u64; // microXTZ (1e6)
 pub type Ts = u64; // timestamp fourni par l'input (déterministe)
 
-#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, Default, PartialEq, Eq)]
 pub struct APIOrder {
     pub side: Side,
     pub size: Qty,
     pub price: Price,
     pub ts: Ts,
-    pub signature: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,8 +35,9 @@ pub struct Order {
     pub ts: Ts,         // pour FIFO intra-niveau
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum Side {
+    #[default]
     Bid,
     Ask,
 }

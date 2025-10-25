@@ -5,8 +5,8 @@ use crate::position::{APIOrder, CancelOrder};
 #[rpc(client, server)]
 pub trait TradezRpc {
     #[method(name = "send_order")]
-    async fn send_order(&self, api_order: APIOrder) -> RpcResult<String>;
+    async fn send_order(&self, api_order: APIOrder, signature: Vec<u8>) -> RpcResult<String>;
 
     #[method(name = "cancel_order")]
-    async fn cancel_order(&self, params: CancelOrder) -> RpcResult<String>;
+    async fn cancel_order(&self, params: CancelOrder, signature: Vec<u8>) -> RpcResult<String>;
 }

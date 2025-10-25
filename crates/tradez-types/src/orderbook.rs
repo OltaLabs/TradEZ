@@ -150,6 +150,25 @@ impl OrderBook {
     pub fn best_ask(&self) -> Option<Price> {
         self.asks.keys().next().copied()
     }
+    pub fn spread(&self) -> Option<Price> {
+        match (self.best_bid(), self.best_ask()) {
+            (Some(bid), Some(ask)) => Some(ask.saturating_sub(bid)),
+            _ => None,
+        }
+    }
+    pub fn price_quantity_at(&self, price: Price) -> Qty {
+        let bid_qty = self
+            .bids
+            .get(&price)
+            .map(|queue| queue.iter().map(|o| o.remaining).sum())
+            .unwrap_or(0);
+        let ask_qty = self
+            .asks
+            .get(&price)
+            .map(|queue| queue.iter().map(|o| o.remaining).sum())
+            .unwrap_or(0);
+        bid_qty + ask_qty
+    }
     pub fn is_empty(&self) -> bool {
         self.bids.is_empty() && self.asks.is_empty()
     }

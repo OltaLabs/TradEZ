@@ -3,6 +3,7 @@ use std::time::Instant;
 use clap::{Parser, Subcommand};
 use jsonrpsee::http_client::HttpClientBuilder;
 use tradez_types::{api::TradezRpcClient, position::APIOrder};
+use rlp::Encodable;
 
 pub mod wallet;
 
@@ -78,8 +79,11 @@ async fn main() {
     let server_url = args.url;
     match args.app {
         AppSubcommand::Wallet(wallet_cmd) => {
-            let wallet =
-                wallet::load_wallet(&wallet_cmd.dirpath, &wallet_cmd.name, wallet_cmd.password);
+            let wallet = wallet::Wallet::load_wallet(
+                &wallet_cmd.dirpath,
+                &wallet_cmd.name,
+                wallet_cmd.password,
+            );
             let client = HttpClientBuilder::new().build(server_url).unwrap();
 
             match wallet_cmd.command {
@@ -103,10 +107,7 @@ async fn main() {
                         "Opening position with side: {}, size: {}, price: {} for wallet: {}",
                         side, size, price, wallet_cmd.name
                     );
-                    let signature = "dummy_signature"; // Replace with actual signature logic
-                    let result = TradezRpcClient::send_order(
-                        &client,
-                        APIOrder {
+                    let api_order = APIOrder {
                             side: if side == 0 {
                                 tradez_types::position::Side::Bid
                             } else {
@@ -116,8 +117,12 @@ async fn main() {
                             ts: Instant::now().elapsed().as_millis() as u64,
                             size,
                             price,
-                            signature: signature.to_string(),
-                        },
+                    };
+                    let signature = wallet.sign_message(&api_order.rlp_bytes()).unwrap();
+                    let result = TradezRpcClient::send_order(
+                        &client,
+                        api_order,
+                        signature
                     )
                     .await
                     .unwrap();

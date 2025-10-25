@@ -3,7 +3,7 @@ use rlp::Encodable;
 use tradez_kernel::kernel_loop;
 use tradez_types::{
     api::TradezRpcServer,
-    position::{APIOrder, CancelOrder},
+    position::{APIOrder, CancelOrder}, SignedInput,
 };
 
 use crate::host::SequencerHost;
@@ -15,14 +15,17 @@ pub struct TradezRpcImpl {
 
 #[async_trait::async_trait]
 impl TradezRpcServer for TradezRpcImpl {
-    async fn send_order(&self, api_order: APIOrder) -> RpcResult<String> {
+    async fn send_order(&self, api_order: APIOrder, signature: Vec<u8>) -> RpcResult<String> {
         println!(
             "Received order: side={}, size={}, price={}",
             api_order.side, api_order.size, api_order.price
         );
-        let rlp_encoded = api_order.rlp_bytes().to_vec();
-        let inputs = vec![rlp_encoded.clone()];
+        let inputs = vec![SignedInput::new(
+            api_order,
+            signature,
+        ).rlp_bytes().to_vec()];
         let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
+        println!("Executing order in native kernel...");
         kernel_loop(&mut host);
         if let Err(e) = self
             .smart_rollup_node_client
@@ -33,22 +36,16 @@ impl TradezRpcServer for TradezRpcImpl {
         } else {
             println!("Successfully injected inbox message.");
         }
-        println!("With signature: {}", api_order.signature);
         Ok(String::from("Order received"))
     }
 
-    async fn cancel_order(&self, params: CancelOrder) -> RpcResult<String> {
+    async fn cancel_order(&self, params: CancelOrder, _signature: Vec<u8>) -> RpcResult<String> {
         println!("Received cancel request for order ID: {}", params.order_id);
-        println!("With signature: {}", params.signature);
         Ok(String::from("Cancel request received"))
     }
 }
 
-pub async fn launch_server(
-    rpc_port: u16,
-    smart_rollup_addr: String,
-    data_dir: String,
-) -> std::io::Result<()> {
+pub async fn launch_server(rpc_port: u16, smart_rollup_addr: String, data_dir: String) -> std::io::Result<()> {
     println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl {

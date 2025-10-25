@@ -66,4 +66,36 @@ impl Client {
             .wait()
             .expect("Failed to wait for client open-position command");
     }
+
+    pub fn sell(&self, size: u64, price: u64) {
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
+            .arg("--url")
+            .arg(&self.rpc_url)
+            .arg("wallet")
+            .arg("--dirpath")
+            .arg(self.wallet_dir.path())
+            .arg("open-position")
+            .arg("--side")
+            .arg("1")
+            .arg("--size")
+            .arg(size.to_string())
+            .arg("--price")
+            .arg(price.to_string());
+        if self.config.verbose {
+            command.stdout(std::process::Stdio::inherit());
+            command.stderr(std::process::Stdio::inherit());
+        } else {
+            command.stdout(std::process::Stdio::piped());
+            command.stderr(std::process::Stdio::piped());
+        }
+        if self.config.print_commands {
+            println!("> {:?}", command);
+        }
+        command
+            .spawn()
+            .expect("Failed to spawn client open-position command")
+            .wait()
+            .expect("Failed to wait for client open-position command");
+    }
 }

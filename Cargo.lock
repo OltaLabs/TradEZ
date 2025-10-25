@@ -4669,11 +4669,13 @@ name = "tradez-client"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
  "alloy-signer-local",
  "clap",
  "hex",
  "jsonrpsee",
  "rand 0.8.5",
+ "rlp 0.6.1",
  "serde",
  "serde_json",
  "tokio",

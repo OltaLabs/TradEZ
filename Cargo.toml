@@ -17,7 +17,8 @@ tradez-kernel = { package = "tradez-kernel", path = "./crates/tradez-kernel" }
 tempfile = "3.23.0"
 openport = "0.1.1"
 bincode = { version = "2.0.1", features = ["serde"] }
-alloy-signer-local = { version = "1.0.41", features = ["keystore"] }
+alloy-signer-local = { version = "1.0.41" }
+alloy-signer = { version = "1.0.41" }
 alloy-primitives = { version = "1.2.0", default-features = false, features = ["rlp", "serde"] }
 clap = { version = "4.5", features = ["derive"] }
 nom = "7.1"
