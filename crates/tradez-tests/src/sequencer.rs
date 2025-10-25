@@ -12,7 +12,7 @@ pub struct Sequencer {
     child: std::process::Child,
     pub rpc_port: u16,
     #[allow(dead_code)]
-    pub data_dir: TempDir
+    pub data_dir: TempDir,
 }
 
 impl Sequencer {
@@ -21,7 +21,9 @@ impl Sequencer {
         let data_dir = TempDir::with_suffix("tradez_sequencer")
             .expect("Failed to create temp dir for sequencer data");
         let mut command = Command::new("../../target/release/tradez-sequencer");
-        command.arg("--rpc-port").arg(rpc_port.to_string())
+        command
+            .arg("--rpc-port")
+            .arg(rpc_port.to_string())
             .arg("--smart-rollup-addr")
             .arg(config.smart_rollup_node_address)
             .arg("--data-dir")
@@ -37,7 +39,11 @@ impl Sequencer {
             println!("> {:?}", command);
         }
         let child = command.spawn().expect("Failed to start sequencer");
-        Sequencer { child, rpc_port, data_dir }
+        Sequencer {
+            child,
+            rpc_port,
+            data_dir,
+        }
     }
 
     pub fn stop(&mut self) {
@@ -45,5 +51,11 @@ impl Sequencer {
         self.child
             .wait()
             .expect("Failed to wait for sequencer process to exit");
+    }
+}
+
+impl Drop for Sequencer {
+    fn drop(&mut self) {
+        self.stop();
     }
 }

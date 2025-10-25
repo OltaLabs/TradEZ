@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, VecDeque};
 
+use crate::{
+    address::Address,
+    error::TradezError,
+    position::{OrdType, Order, Price, Qty, Side, Ts},
+};
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::RefPath;
-use crate::{
-    address::Address, error::TradezError, position::{OrdType, Order, Price, Qty, Side, Ts}
-};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -74,8 +76,13 @@ impl Decodable for OrderBook {
         let asks_rlp = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
         for ask in asks_rlp.iter() {
             let mut ask_it = ask.iter();
-            let price: Price = ask_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
-            let orders_rlp = ask_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
+            let price: Price = ask_it
+                .next()
+                .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                .as_val()?;
+            let orders_rlp = ask_it
+                .next()
+                .ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
             let mut queue = VecDeque::new();
             for order_rlp in orders_rlp.iter() {
                 let order: Order = Decodable::decode(&order_rlp)?;
@@ -87,8 +94,13 @@ impl Decodable for OrderBook {
         let bids_rlp = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
         for bid in bids_rlp.iter() {
             let mut bid_it = bid.iter();
-            let price: Price = bid_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
-            let orders_rlp = bid_it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
+            let price: Price = bid_it
+                .next()
+                .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                .as_val()?;
+            let orders_rlp = bid_it
+                .next()
+                .ok_or(rlp::DecoderError::RlpIncorrectListLen)?;
             let mut queue = VecDeque::new();
             for order_rlp in orders_rlp.iter() {
                 let order: Order = Decodable::decode(&order_rlp)?;
@@ -96,7 +108,10 @@ impl Decodable for OrderBook {
             }
             ob.bids.insert(price, queue);
         }
-        ob.next_id = it.next().ok_or(rlp::DecoderError::RlpIncorrectListLen)?.as_val()?;
+        ob.next_id = it
+            .next()
+            .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+            .as_val()?;
 
         Ok(ob)
     }

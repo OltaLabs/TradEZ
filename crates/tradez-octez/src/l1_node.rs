@@ -135,3 +135,9 @@ impl L1Node {
         }
     }
 }
+
+impl Drop for L1Node {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}

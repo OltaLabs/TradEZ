@@ -17,7 +17,7 @@ pub struct SequencerHost {
 }
 
 impl SequencerHost {
-    pub fn new(inputs: Vec<Vec<u8>>, data_dir:String) -> Self {
+    pub fn new(inputs: Vec<Vec<u8>>, data_dir: String) -> Self {
         let db = Database::create(format!("{}/my_db.redb", data_dir)).unwrap();
         Self {
             db,
@@ -154,7 +154,11 @@ impl Runtime for SequencerHost {
         let Ok(table) = read_txn.open_table(TABLE) else {
             return Err(RuntimeError::PathNotFound);
         };
-        Ok(table.get(path.to_string().as_str()).unwrap().unwrap().value())
+        Ok(table
+            .get(path.to_string().as_str())
+            .unwrap()
+            .unwrap()
+            .value())
     }
 
     fn store_read_slice<T: tezos_smart_rollup_host::path::Path>(
@@ -190,7 +194,9 @@ impl Runtime for SequencerHost {
         let write_txn = self.db.begin_write().unwrap();
         {
             let mut table = write_txn.open_table(TABLE).unwrap();
-            table.insert(path.to_string().as_str(), src.to_vec()).unwrap();
+            table
+                .insert(path.to_string().as_str(), src.to_vec())
+                .unwrap();
         }
         write_txn.commit().unwrap();
         Ok(())

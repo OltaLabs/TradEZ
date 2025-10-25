@@ -44,7 +44,11 @@ impl TradezRpcServer for TradezRpcImpl {
     }
 }
 
-pub async fn launch_server(rpc_port: u16, smart_rollup_addr: String, data_dir: String) -> std::io::Result<()> {
+pub async fn launch_server(
+    rpc_port: u16,
+    smart_rollup_addr: String,
+    data_dir: String,
+) -> std::io::Result<()> {
     println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl {

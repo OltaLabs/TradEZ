@@ -103,6 +103,12 @@ impl SmartRollupNode {
     }
 }
 
+impl Drop for SmartRollupNode {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 pub struct SmartRollupClient {
     client: reqwest::Client,
     api_addr: String,
@@ -122,7 +128,6 @@ enum ValueResponse {
     Value(String),
     Errors(Vec<ValueError>),
 }
-
 
 impl SmartRollupClient {
     pub fn new(api_addr: &str) -> Self {
@@ -176,8 +181,7 @@ impl SmartRollupClient {
                 }
                 Some(ValueResponse::Errors(errors)) => Err(OctezError::HttpResponseError(format!(
                     "Failed to get value of key-value pair: {}. Errors: {:?}",
-                    key,
-                    errors
+                    key, errors
                 ))),
                 None => Ok(None),
             }
