@@ -16,3 +16,9 @@ Launch tests :
 ```
 cargo build --release && cargo test --package tradez-tests --lib
 ```
+
+TODO:
+- Fees
+- Replace timestamp with nonces
+- Faucet
+- Balances
