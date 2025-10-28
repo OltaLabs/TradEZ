@@ -10,7 +10,7 @@ use tradez_types::{
     address::Address,
     currencies::Currencies,
     orderbook::{Event, OrderBook},
-    position::Side,
+    position::{Side, UserOrder},
 };
 
 use crate::account::Account;
@@ -61,6 +61,7 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                                 *balance = balance.checked_sub(fee).unwrap();
                             }
                         };
+                        account.orders.insert(orderbook.next_id, UserOrder::from(order));
                         account.save(host).unwrap();
                         let mut events = vec![];
                         host.write_debug(&format!("Place order for address: {:?}\n", caller));
@@ -76,9 +77,9 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                         for event in events {
                             host.write_debug(&format!("Order book event: {:?}\n", event));
                             if let Event::Trade {
-                                maker_id: _,
+                                maker_id,
                                 maker_user,
-                                taker_id: _,
+                                taker_id,
                                 taker_user,
                                 price,
                                 qty,
@@ -109,15 +110,71 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                                 *taker_usdc_balance = taker_usdc_balance
                                     .checked_sub(qty.checked_mul(price).unwrap())
                                     .unwrap();
+                                // Remove partially or fully filled orders from accounts
+                                {
+                                    let maker_order = maker_account.orders.get_mut(&maker_id).unwrap();
+                                    maker_order.remaining = maker_order.remaining.checked_sub(qty).unwrap();
+                                    if maker_order.remaining == 0 {
+                                        maker_account.orders.remove(&maker_id);
+                                    }
+                                }
+                                {
+                                    let taker_order = taker_account.orders.get_mut(&taker_id).unwrap();
+                                    taker_order.remaining = taker_order.remaining.checked_sub(qty).unwrap();
+                                    if taker_order.remaining == 0 {
+                                        taker_account.orders.remove(&taker_id);
+                                    }
+                                }
                                 // Save updated accounts
                                 maker_account.save(host).unwrap();
                                 taker_account.save(host).unwrap();
                             }
                         }
                     }
-                    KernelMessage::CancelOrder(_cancel_order) => {
+                    KernelMessage::CancelOrder(cancel_order) => {
                         host.write_debug("Received Cancel Order\n");
-                        // Implement cancel order logic here
+                        let signature = Signature::from_raw(&signature).unwrap();
+                        let caller = Address::from(
+                            signature
+                                .recover_address_from_msg(cancel_order.rlp_bytes())
+                                .unwrap(),
+                        );
+                        let mut account = Account::load(host, &caller)
+                            .unwrap()
+                            .unwrap_or(Account::new(caller));
+                        host.write_debug(&format!(
+                            "Account before cancelling order: {:?}\n", account
+                        ));
+                        if let Some(user_order) = account.orders.remove(&cancel_order.order_id) {
+                            // Refund the remaining amount to the user's balance
+                            match user_order.side {
+                                Side::Ask => {
+                                    let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
+                                    *balance = balance.checked_add(user_order.remaining).unwrap();
+                                }
+                                Side::Bid => {
+                                    let balance = account.balances.entry(Currencies::USDC).or_insert(0);
+                                    *balance = balance.checked_add(
+                                        user_order.remaining.checked_mul(user_order.price).unwrap(),
+                                    ).unwrap();
+                                }
+                            }
+                            account.save(host).unwrap();
+                            let mut events = vec![];
+                            orderbook.cancel(user_order.side, cancel_order.order_id, &mut events);
+                            host.write_debug(&format!(
+                                "Cancelled order ID: {} for address: {:?}\n",
+                                cancel_order.order_id, caller
+                            ));
+                            for event in events {
+                                host.write_debug(&format!("Order book event: {:?}\n", event));
+                            }
+                        } else {
+                            host.write_debug(&format!(
+                                "Order ID: {} not found for address: {:?}\n",
+                                cancel_order.order_id, caller
+                            ));
+                        }
                     }
                     KernelMessage::Faucet(faucet) => {
                         let signature = Signature::from_raw(&signature).unwrap();

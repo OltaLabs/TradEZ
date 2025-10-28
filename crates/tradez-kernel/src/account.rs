@@ -3,18 +3,20 @@ use std::collections::HashMap;
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::{RefPath, concat};
-use tradez_types::{address::Address, currencies::Currencies, error::TradezError};
+use tradez_types::{address::Address, currencies::Currencies, error::TradezError, position::UserOrder};
 
 #[derive(Debug)]
 pub struct Account {
     pub address: Address,
     pub nonce: u64,
     pub balances: HashMap<Currencies, u64>,
+    // TODO: Optimize, currently it's stored at two places
+    pub orders: HashMap<u64, UserOrder>
 }
 
 impl Encodable for Account {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
-        s.begin_list(3);
+        s.begin_list(4);
         s.append(&self.address);
         s.append(&self.nonce);
         s.begin_list(self.balances.len());
@@ -25,6 +27,12 @@ impl Encodable for Account {
                 Currencies::XTZ => s.append(&1u8),
             };
             s.append(balance);
+        }
+        s.begin_list(self.orders.len());
+        for (order_id, order) in &self.orders {
+            s.begin_list(2);
+            s.append(order_id);
+            s.append(order);
         }
     }
 }
@@ -46,10 +54,19 @@ impl Decodable for Account {
             };
             balances.insert(currency, balance);
         }
+        let orders_rlp = rlp.at(3)?;
+        let mut orders = HashMap::new();
+        for i in 0..orders_rlp.item_count()? {
+            let entry_rlp = orders_rlp.at(i)?;
+            let order_id: u64 = entry_rlp.val_at(0)?;
+            let order: UserOrder = entry_rlp.val_at(1)?;
+            orders.insert(order_id, order);
+        }
         Ok(Account {
             address,
             nonce,
             balances,
+            orders,
         })
     }
 }
@@ -62,6 +79,7 @@ impl Account {
             address,
             nonce: 0,
             balances: HashMap::new(),
+            orders: HashMap::new(),
         }
     }
 
@@ -108,11 +126,13 @@ mod tests {
         let mut balances = HashMap::new();
         balances.insert(Currencies::USDC, 1000u64);
         balances.insert(Currencies::XTZ, 500u64);
+        let orders = HashMap::new();
         let address = Address::from([0u8; 20]);
         let account = Account {
             address: address.clone(),
             nonce: 100,
             balances: balances.clone(),
+            orders: orders.clone(),
         };
         let mut stream = rlp::RlpStream::new();
         account.rlp_append(&mut stream);

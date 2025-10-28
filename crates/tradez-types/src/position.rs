@@ -7,9 +7,8 @@ use crate::address::Address;
 
 pub type Price = u64; // microUSDC par XTZ (1e6)
 pub type Qty = u64; // microXTZ (1e6)
-pub type Ts = u64; // timestamp fourni par l'input (déterministe)
 
-#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, Default, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, Default, PartialEq, Eq, Clone, Copy)]
 pub struct APIOrder {
     pub side: Side,
     pub size: Qty,
@@ -36,7 +35,30 @@ pub struct Order {
     pub price: Price,   // ignoré si Market
     pub qty: Qty,       // quantité initiale
     pub remaining: Qty, // quantité restante
-    pub ts: Ts,         // pour FIFO intra-niveau
+    pub nonce: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]
+pub struct UserOrder {
+    pub side: Side,
+    pub ord_type: OrdType,
+    pub price: Price,   // ignoré si Market
+    pub qty: Qty,       // quantité initiale
+    pub remaining: Qty, // quantité restante
+    pub nonce: u64,
+}
+
+impl From<APIOrder> for UserOrder {
+    fn from(api_order: APIOrder) -> Self {
+        UserOrder {
+            side: api_order.side,
+            ord_type: OrdType::Limit,
+            price: api_order.price,
+            qty: api_order.size,
+            remaining: api_order.size,
+            nonce: api_order.nonce,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]

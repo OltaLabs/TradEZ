@@ -1,22 +1,27 @@
+use std::sync::Arc;
+
 use alloy_primitives::hex::FromHex;
+use hyper::Method;
 use jsonrpsee::{core::RpcResult, server::ServerBuilder, types::ErrorObject};
 use rlp::Encodable;
+use tokio::sync::Mutex;
+use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tradez_kernel::{account::Account, kernel_loop};
 use tradez_types::{
-    KernelMessage, SignedInput,
     address::Address,
     api::TradezRpcServer,
     currencies::Currencies,
     orderbook::OrderBook,
-    position::{APIOrder, CancelOrder, Faucet, Price, Qty},
+    position::{APIOrder, CancelOrder, Faucet, Price, Qty, UserOrder},
+    KernelMessage, SignedInput,
 };
-use hyper::Method;
+
 use crate::host::SequencerHost;
 
 pub struct TradezRpcImpl {
     pub smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient,
-    pub data_dir: String,
+    pub host: Arc<Mutex<SequencerHost>>,
 }
 
 #[async_trait::async_trait]
@@ -31,9 +36,12 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
-        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
-        println!("Executing order in native kernel...");
-        kernel_loop(&mut host);
+        {
+            let mut host = self.host.lock().await;
+            host.add_inputs(inputs.clone());
+            println!("Executing order in native kernel...");
+            kernel_loop(&mut *host);
+        }
         if let Err(e) = self
             .smart_rollup_node_client
             .inject_inbox_messages(inputs)
@@ -52,9 +60,12 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
-        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
-        println!("Executing cancel order in native kernel...");
-        kernel_loop(&mut host);
+        {
+            let mut host = self.host.lock().await;
+            host.add_inputs(inputs.clone());
+            println!("Executing cancel order in native kernel...");
+            kernel_loop(&mut *host);
+        }
         if let Err(e) = self
             .smart_rollup_node_client
             .inject_inbox_messages(inputs)
@@ -73,9 +84,12 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
-        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
-        println!("Executing faucet in native kernel...");
-        kernel_loop(&mut host);
+        {
+            let mut host = self.host.lock().await;
+            host.add_inputs(inputs.clone());
+            println!("Executing faucet in native kernel...");
+            kernel_loop(&mut *host);
+        }
         if let Err(e) = self
             .smart_rollup_node_client
             .inject_inbox_messages(inputs)
@@ -92,8 +106,11 @@ impl TradezRpcServer for TradezRpcImpl {
         let addr = Address::from_hex(&address).map_err(|e| {
             ErrorObject::owned::<()>(-32000, format!("Failed to decode address: {:?}", e), None)
         })?;
-        let mut host = SequencerHost::new(vec![], self.data_dir.clone());
-        let account = Account::load(&mut host, &addr)
+        let account_result = {
+            let mut host = self.host.lock().await;
+            Account::load(&mut *host, &addr)
+        };
+        let account = account_result
             .map_err(|e| {
                 ErrorObject::owned::<()>(-32000, format!("Failed to load account: {:?}", e), None)
             })?
@@ -103,9 +120,29 @@ impl TradezRpcServer for TradezRpcImpl {
         Ok(balances)
     }
 
+    async fn get_orders(&self, address: String) -> RpcResult<Vec<(u64, UserOrder)>> {
+        let addr = Address::from_hex(&address).map_err(|e| {
+            ErrorObject::owned::<()>(-32000, format!("Failed to decode address: {:?}", e), None)
+        })?;
+        let account_result = {
+            let mut host = self.host.lock().await;
+            Account::load(&mut *host, &addr)
+        };
+        let account = account_result
+            .map_err(|e| {
+                ErrorObject::owned::<()>(-32000, format!("Failed to load account: {:?}", e), None)
+            })?
+            .unwrap_or_else(|| Account::new(addr));
+        let orders: Vec<(u64, UserOrder)> = account.orders.into_iter().collect();
+        Ok(orders)
+    }
+
     async fn get_orderbook_state(&self) -> RpcResult<(Vec<(Price, Qty)>, Vec<(Price, Qty)>)> {
-        let mut host = SequencerHost::new(vec![], self.data_dir.clone());
-        let orderbook = OrderBook::load(&mut host).map_err(|e| {
+        let orderbook_result = {
+            let mut host = self.host.lock().await;
+            OrderBook::load(&mut *host)
+        };
+        let orderbook = orderbook_result.map_err(|e| {
             ErrorObject::owned::<()>(-32000, format!("Failed to load orderbook: {:?}", e), None)
         })?;
         let mut bids = Vec::new();
@@ -133,19 +170,17 @@ pub async fn launch_server(
         smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient::new(
             &smart_rollup_addr,
         ),
-        data_dir,
+        host: Arc::new(Mutex::new(SequencerHost::new(data_dir))),
     };
 
-	let cors = CorsLayer::new()
-		// Allow `POST` when accessing the resource
-		.allow_methods([Method::POST])
-		// Allow requests from any origin
-		.allow_origin(Any)
-		.allow_headers([hyper::header::CONTENT_TYPE]);
-	let middleware = tower::ServiceBuilder::new().layer(cors);
+    let cors = CorsLayer::new()
+        .allow_methods([Method::POST])
+        .allow_origin(Any)
+        .allow_headers([hyper::header::CONTENT_TYPE]);
+    let middleware = ServiceBuilder::new().layer(cors);
 
     let server = ServerBuilder::default()
-    .set_http_middleware(middleware)
+        .set_http_middleware(middleware)
         .build(&format!("127.0.0.1:{}", rpc_port))
         .await?;
     let handle = server.start(TradezRpcServer::into_rpc(rpc_impl));

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, VecDeque};
 use crate::{
     address::Address,
     error::TradezError,
-    position::{OrdType, Order, Price, Qty, Side, Ts},
+    position::{OrdType, Order, Price, Qty, Side},
 };
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
@@ -182,7 +182,7 @@ impl OrderBook {
         side: Side,
         price: Price,
         qty: Qty,
-        ts: Ts,
+        nonce: u64,
         out: &mut Vec<Event>,
     ) -> u64 {
         assert!(qty > 0, "qty must be > 0");
@@ -198,7 +198,7 @@ impl OrderBook {
             price,
             qty,
             remaining: qty,
-            ts,
+            nonce,
         };
         out.push(Event::Placed {
             id,
@@ -227,7 +227,7 @@ impl OrderBook {
         user: Address,
         side: Side,
         qty: Qty,
-        ts: Ts,
+        nonce: u64,
         out: &mut Vec<Event>,
     ) -> u64 {
         assert!(qty > 0, "qty must be > 0");
@@ -240,7 +240,7 @@ impl OrderBook {
             price: 0,
             qty,
             remaining: qty,
-            ts,
+            nonce,
         };
         out.push(Event::Placed {
             id,

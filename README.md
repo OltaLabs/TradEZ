@@ -24,6 +24,7 @@ cargo build --release && cd tradez-tests && cargo run --release
 
 TODO:
 - Make RPC nodes
+- Stream trades that succeeded 
 - Fix buy/sell with faucet
 - Unwraps in kernel
 - Check maybe remove nonce

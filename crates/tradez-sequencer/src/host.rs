@@ -17,11 +17,17 @@ pub struct SequencerHost {
 }
 
 impl SequencerHost {
-    pub fn new(inputs: Vec<Vec<u8>>, data_dir: String) -> Self {
+    pub fn new(data_dir: String) -> Self {
         let db = Database::create(format!("{}/my_db.redb", data_dir)).unwrap();
         Self {
             db,
-            inputs: inputs.into_iter().collect(),
+            inputs: VecDeque::new(),
+        }
+    }
+
+    pub fn add_inputs(&mut self, new_inputs: Vec<Vec<u8>>) {
+        for input in new_inputs {
+            self.inputs.push_back(input);
         }
     }
 }

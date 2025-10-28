@@ -23,6 +23,15 @@ export type RpcFaucet = {
 export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;
 export type RpcOrderbookLevels = Array<[RpcPrice, RpcQty]>;
 export type RpcOrderbookState = [RpcOrderbookLevels, RpcOrderbookLevels];
+export type RpcUserOrder = {
+  side: "Bid" | "Ask";
+  ord_type: "Limit" | "Market";
+  price: RpcPrice;
+  qty: RpcQty;
+  remaining: RpcQty;
+  nonce: number;
+};
+export type RpcOrdersResult = Array<[number, RpcUserOrder]>;
 
 const trimTrailingSlash = (value?: string) => value?.replace(/\/+$/, "");
 
@@ -158,6 +167,13 @@ export const useTradezApi = () => {
     [callRpc]
   );
 
+  const getOrders = useCallback(
+    async (address: string) => {
+      return callRpc<RpcOrdersResult>("get_orders", [address]);
+    },
+    [callRpc]
+  );
+
   const getOrderbookState = useCallback(async () => {
     return callRpc<RpcOrderbookState>("get_orderbook_state", []);
   }, [callRpc]);
@@ -169,6 +185,7 @@ export const useTradezApi = () => {
     cancelOrder,
     faucet,
     getBalances,
+    getOrders,
     getOrderbookState,
   };
 };

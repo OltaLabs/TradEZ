@@ -99,6 +99,13 @@ enum GetInfosCommand {
         #[arg(short, long)]
         address: String,
     },
+    /// Get orders of an address
+    Orders {
+        /// Address to get orders for
+        /// Hexadecimal string representation of the address
+        #[arg(short, long)]
+        address: String,
+    },
 }
 
 #[tokio::main]
@@ -195,6 +202,13 @@ async fn main() {
                     .await
                     .unwrap();
                 println!("Balances: {:?}", balances);
+            }
+            GetInfosCommand::Orders { address } => {
+                println!("Fetching orders for address: {}", address);
+                let orders = TradezRpcClient::get_orders(&client, address)
+                    .await
+                    .unwrap();
+                println!("Orders: {:?}", orders);
             }
         },
     }
