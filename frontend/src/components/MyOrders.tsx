@@ -148,8 +148,7 @@ const MyOrders = () => {
       }
       try {
         setCancellingId(orderId);
-        const toMinimalBytes = (value: bigint) => ethers.getBytes(ethers.toBeHex(value));
-        const encoded = ethers.encodeRlp([toMinimalBytes(BigInt(orderId))]);
+        const encoded = ethers.encodeRlp([ethers.toBeArray(BigInt(orderId))]);
         const signature = await signMessage(ethers.getBytes(encoded));
         if (!signature) {
           throw new Error("Unable to sign cancel request");

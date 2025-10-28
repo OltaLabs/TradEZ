@@ -133,7 +133,7 @@ const OrderForm = () => {
         price: Number(priceUnits),
         nonce: Number(nonce),
       };
-      const toMinimalBytes = (value: bigint) => ethers.getBytes(ethers.toBeHex(value));
+      const toMinimalBytes = (value: bigint) => ethers.toBeArray(value);
       const orderForSignature = [
         toMinimalBytes(side === "buy" ? 0n : 1n),
         toMinimalBytes(sizeUnits),

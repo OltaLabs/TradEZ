@@ -17,7 +17,7 @@ use crate::account::Account;
 
 pub mod account;
 
-//TODO: Fix all unwraps
+//TODO: Fix all unwraps and verify all computations
 fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
     let mut orderbook = OrderBook::load(host).unwrap();
     if let Some((_, msg)) = InboxMessage::<MichelsonBytes>::parse(msg.as_ref()).ok() {

@@ -6,7 +6,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
 import { useTradezApi } from "@/hooks/useTradezApi";
 
-const DEFAULT_FAUCET_AMOUNT = 1_000_000n;
+const DEFAULT_FAUCET_AMOUNT = 1_000_000_000n;
 
 const Header = () => {
   const { account, connecting, connectWallet, disconnectWallet, signMessage } = useWallet();
