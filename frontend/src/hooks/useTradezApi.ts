@@ -1,47 +1,28 @@
 import { useCallback, useMemo } from "react";
 
-type RequestOptions = Omit<RequestInit, "body"> & {
-  json?: unknown;
+export type RpcCurrency = "USDC" | "XTZ";
+export type RpcQty = number;
+export type RpcPrice = number;
+export type RpcSignatureInput = string | Uint8Array | number[];
+
+export type RpcOrder = {
+  side: "Bid" | "Ask";
+  size: RpcQty;
+  price: RpcPrice;
+  nonce: number;
 };
 
-export type BalanceRequest = {
-  ticker: string;
-  address: string;
+export type RpcCancelOrder = {
+  order_id: number;
 };
 
-export type BalanceResponse = {
-  ticker: string;
-  balance: string;
+export type RpcFaucet = {
+  amount: RpcQty;
 };
 
-export type FaucetRequest = {
-  address: string;
-  ticker?: string;
-  amount?: string;
-};
-
-export type FaucetResponse = {
-  ticker: string;
-  amount: string;
-  txHash?: string;
-  message?: string;
-};
-
-export type PlaceOrderPayload = {
-  pair: string;
-  side: "buy" | "sell";
-  type: "limit" | "market";
-  price?: string;
-  amount: string;
-  signature: string;
-  timestamp: number;
-};
-
-export type PlaceOrderResponse = {
-  orderId: string;
-  status: "accepted" | "pending" | "rejected";
-  message?: string;
-};
+export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;
+export type RpcOrderbookLevels = Array<[RpcPrice, RpcQty]>;
+export type RpcOrderbookState = [RpcOrderbookLevels, RpcOrderbookLevels];
 
 const trimTrailingSlash = (value?: string) => value?.replace(/\/+$/, "");
 
@@ -57,96 +38,137 @@ const parseBody = async (response: Response) => {
   }
 };
 
+const toByteArray = (input: RpcSignatureInput): number[] => {
+  if (typeof input === "string") {
+    const hex = input.startsWith("0x") ? input.slice(2) : input;
+    if (hex.length % 2 !== 0) {
+      throw new Error("Invalid hex signature.");
+    }
+    const bytes: number[] = [];
+    for (let i = 0; i < hex.length; i += 2) {
+      const value = Number.parseInt(hex.slice(i, i + 2), 16);
+      if (Number.isNaN(value)) {
+        throw new Error("Invalid hex signature.");
+      }
+      bytes.push(value);
+    }
+    return bytes;
+  }
+  if (input instanceof Uint8Array) {
+    return Array.from(input);
+  }
+  return [...input];
+};
+
+type JsonRpcSuccess<T> = {
+  jsonrpc: "2.0";
+  id: number | string | null;
+  result: T;
+};
+
+type JsonRpcError = {
+  jsonrpc: "2.0";
+  id: number | string | null;
+  error: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+};
+
 export const useTradezApi = () => {
   const apiBaseUrl = useMemo(
     () => trimTrailingSlash(import.meta.env.VITE_TRADEZ_API_URL as string | undefined),
     []
   );
-  const faucetUrl = useMemo(() => {
-    const explicit = trimTrailingSlash(import.meta.env.VITE_FAUCET_URL as string | undefined);
-    if (explicit) {
-      return explicit;
-    }
-    return apiBaseUrl ? `${apiBaseUrl}/faucet` : undefined;
-  }, [apiBaseUrl]);
 
-  const requestJson = useCallback(async <T>(url: string, options: RequestOptions = {}) => {
-    const { json, ...init } = options;
-    const headers: HeadersInit = {
-      Accept: "application/json",
-      ...(json ? { "Content-Type": "application/json" } : {}),
-      ...(init.headers ?? {}),
-    };
-
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      body: json ? JSON.stringify(json) : init.body,
-    });
-
-    const payload = await parseBody(response);
-    if (!response.ok) {
-      const message =
-        (typeof payload === "string" && payload) ||
-        (payload && typeof payload === "object" && "message" in payload
-          ? String((payload as Record<string, unknown>).message)
-          : null) ||
-        `Request failed with status ${response.status}`;
-      throw new Error(message);
-    }
-
-    return payload as T;
-  }, []);
-
-  const callApi = useCallback(
-    async <T>(path: string, options: RequestOptions = {}) => {
+  const callRpc = useCallback(
+    async <T>(method: string, params: unknown[]) => {
       if (!apiBaseUrl) {
         throw new Error("Set VITE_TRADEZ_API_URL to enable backend requests.");
       }
-      const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-      const url = `${apiBaseUrl}${normalizedPath}`;
-      return requestJson<T>(url, options);
-    },
-    [apiBaseUrl, requestJson]
-  );
+      const response = await fetch(apiBaseUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: Date.now(),
+          method,
+          params,
+        }),
+      });
 
-  const getBalance = useCallback(
-    async ({ ticker, address }: BalanceRequest) => {
-      const query = new URLSearchParams({ address });
-      return callApi<BalanceResponse>(`/balances/${encodeURIComponent(ticker)}?${query.toString()}`);
-    },
-    [callApi]
-  );
+      const payload = (await parseBody(response)) as
+        | JsonRpcSuccess<T>
+        | JsonRpcError
+        | string
+        | null;
 
-  const requestTestTokens = useCallback(
-    async (payload: FaucetRequest) => {
-      if (!faucetUrl) {
-        throw new Error("Set VITE_FAUCET_URL or VITE_TRADEZ_API_URL to enable faucet requests.");
+      if (!response.ok) {
+        const message =
+          typeof payload === "string"
+            ? payload
+            : payload && "error" in (payload as any)
+              ? (payload as JsonRpcError).error.message
+              : `Request failed with status ${response.status}`;
+        throw new Error(message);
       }
-      return requestJson<FaucetResponse>(faucetUrl, {
-        method: "POST",
-        json: payload,
-      });
+
+      if (!payload || typeof payload !== "object") {
+        throw new Error("Invalid JSON-RPC response.");
+      }
+
+      if ("error" in payload) {
+        throw new Error(payload.error.message);
+      }
+
+      return (payload as JsonRpcSuccess<T>).result;
     },
-    [faucetUrl, requestJson]
+    [apiBaseUrl]
   );
 
-  const placeOrder = useCallback(
-    async (payload: PlaceOrderPayload) => {
-      return callApi<PlaceOrderResponse>("/orders", {
-        method: "POST",
-        json: payload,
-      });
+  const sendOrder = useCallback(
+    async (order: RpcOrder, signature: RpcSignatureInput) => {
+      return callRpc<string>("send_order", [order, toByteArray(signature)]);
     },
-    [callApi]
+    [callRpc]
   );
+
+  const cancelOrder = useCallback(
+    async (params: RpcCancelOrder, signature: RpcSignatureInput) => {
+      return callRpc<string>("cancel_order", [params, toByteArray(signature)]);
+    },
+    [callRpc]
+  );
+
+  const faucet = useCallback(
+    async (params: RpcFaucet, signature: RpcSignatureInput) => {
+      return callRpc<string>("faucet", [params, toByteArray(signature)]);
+    },
+    [callRpc]
+  );
+
+  const getBalances = useCallback(
+    async (address: string) => {
+      return callRpc<RpcBalancesResult>("get_balances", [address]);
+    },
+    [callRpc]
+  );
+
+  const getOrderbookState = useCallback(async () => {
+    return callRpc<RpcOrderbookState>("get_orderbook_state", []);
+  }, [callRpc]);
 
   return {
     apiUrl: apiBaseUrl,
-    faucetUrl,
     isApiConfigured: Boolean(apiBaseUrl),
-    getBalance,
-    requestTestTokens,
-    placeOrder,
+    sendOrder,
+    cancelOrder,
+    faucet,
+    getBalances,
+    getOrderbookState,
   };
 };

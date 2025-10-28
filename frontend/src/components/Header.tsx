@@ -1,47 +1,49 @@
 import { useState } from "react";
+import { ethers } from "ethers";
 import { Button } from "@/components/ui/button";
 import { Wallet, LogOut, Coins } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
+import { useTradezApi } from "@/hooks/useTradezApi";
+
+const DEFAULT_FAUCET_AMOUNT = 1_000_000n;
 
 const Header = () => {
-  const { account, connecting, connectWallet, disconnectWallet } = useWallet();
+  const { account, connecting, connectWallet, disconnectWallet, signMessage } = useWallet();
   const { toast } = useToast();
+  const { faucet, isApiConfigured } = useTradezApi();
   const [claiming, setClaiming] = useState(false);
 
   const handleClaimTestTokens = async () => {
     if (!account || claiming) {
       return;
     }
-    const faucetUrl = import.meta.env.VITE_FAUCET_URL as string | undefined;
-    if (!faucetUrl) {
+    if (!isApiConfigured) {
       toast({
         title: "Faucet unavailable",
-        description: "Set VITE_FAUCET_URL to enable test XTZ claims.",
+        description: "Configure VITE_TRADEZ_API_URL to enable faucet requests.",
         variant: "destructive",
       });
       return;
     }
     try {
       setClaiming(true);
-      const response = await fetch(faucetUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ address: account }),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Unable to claim test tokens");
+      const amount = DEFAULT_FAUCET_AMOUNT;
+      const encoded = ethers.encodeRlp([ethers.toBeArray(amount)]);
+      const messageBytes = ethers.getBytes(encoded);
+      const signature = await signMessage(messageBytes);
+      if (!signature) {
+        throw new Error("Unable to sign faucet request");
       }
-      const result = (await response.json().catch(() => ({}))) as { amount?: number };
+      const result = await faucet(
+        {
+          amount: Number(amount),
+        },
+        signature
+      );
       toast({
         title: "Test XTZ claimed",
-        description:
-          result?.amount != null
-            ? `Received ${result.amount} XTZ`
-            : "Your faucet request was submitted.",
+        description: result || "Your faucet request was submitted.",
       });
     } catch (error: any) {
       console.error("Faucet claim failed:", error);

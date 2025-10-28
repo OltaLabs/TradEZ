@@ -19,3 +19,6 @@ tezos-smart-rollup.workspace = true
 tezos-smart-rollup-host.workspace = true
 rlp.workspace = true
 redb.workspace = true
+tower-http = { workspace = true, features = ["cors"] }
+tower.workspace = true
+hyper.workspace = true

@@ -89,7 +89,7 @@ export const useWallet = () => {
     }
   };
 
-  const signMessage = async (message: string): Promise<string | null> => {
+  const signMessage = async (message: string | Uint8Array): Promise<string | null> => {
     const injectedProvider = providerRef.current ?? getMetaMaskProvider();
     if (!account || !injectedProvider) {
       return null;

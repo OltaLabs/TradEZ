@@ -1,6 +1,7 @@
 use alloy_primitives::hex::FromHex;
 use jsonrpsee::{core::RpcResult, server::ServerBuilder, types::ErrorObject};
 use rlp::Encodable;
+use tower_http::cors::{Any, CorsLayer};
 use tradez_kernel::{account::Account, kernel_loop};
 use tradez_types::{
     KernelMessage, SignedInput,
@@ -10,7 +11,7 @@ use tradez_types::{
     orderbook::OrderBook,
     position::{APIOrder, CancelOrder, Faucet, Price, Qty},
 };
-
+use hyper::Method;
 use crate::host::SequencerHost;
 
 pub struct TradezRpcImpl {
@@ -135,7 +136,16 @@ pub async fn launch_server(
         data_dir,
     };
 
+	let cors = CorsLayer::new()
+		// Allow `POST` when accessing the resource
+		.allow_methods([Method::POST])
+		// Allow requests from any origin
+		.allow_origin(Any)
+		.allow_headers([hyper::header::CONTENT_TYPE]);
+	let middleware = tower::ServiceBuilder::new().layer(cors);
+
     let server = ServerBuilder::default()
+    .set_http_middleware(middleware)
         .build(&format!("127.0.0.1:{}", rpc_port))
         .await?;
     let handle = server.start(TradezRpcServer::into_rpc(rpc_impl));

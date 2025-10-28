@@ -19,7 +19,7 @@ cargo build --release && cargo test --package tradez-tests --lib
 
 Launch local environment :
 ```
-cd tradez-tests && cargo run --release
+cargo build --release && cd tradez-tests && cargo run --release
 ```
 
 TODO:
