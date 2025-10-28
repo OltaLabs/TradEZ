@@ -5,10 +5,10 @@ use crate::position::{APIOrder, CancelOrder, Faucet};
 pub mod address;
 #[cfg(feature = "api")]
 pub mod api;
+pub mod currencies;
 pub mod error;
 pub mod orderbook;
 pub mod position;
-pub mod currencies;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignedInput<T>

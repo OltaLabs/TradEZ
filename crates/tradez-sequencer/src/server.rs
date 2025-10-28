@@ -3,7 +3,12 @@ use jsonrpsee::{core::RpcResult, server::ServerBuilder, types::ErrorObject};
 use rlp::Encodable;
 use tradez_kernel::{account::Account, kernel_loop};
 use tradez_types::{
-    KernelMessage, SignedInput, address::Address, api::TradezRpcServer, currencies::Currencies, orderbook::OrderBook, position::{APIOrder, CancelOrder, Faucet, Price, Qty}
+    KernelMessage, SignedInput,
+    address::Address,
+    api::TradezRpcServer,
+    currencies::Currencies,
+    orderbook::OrderBook,
+    position::{APIOrder, CancelOrder, Faucet, Price, Qty},
 };
 
 use crate::host::SequencerHost;
@@ -88,19 +93,20 @@ impl TradezRpcServer for TradezRpcImpl {
         })?;
         let mut host = SequencerHost::new(vec![], self.data_dir.clone());
         let account = Account::load(&mut host, &addr)
-            .map_err(|e| ErrorObject::owned::<()>(-32000, format!("Failed to load account: {:?}", e), None))?
+            .map_err(|e| {
+                ErrorObject::owned::<()>(-32000, format!("Failed to load account: {:?}", e), None)
+            })?
             .unwrap_or_else(|| Account::new(addr));
-        let balances: Vec<(tradez_types::currencies::Currencies, u64)> = account
-            .balances
-            .into_iter()
-            .collect();
+        let balances: Vec<(tradez_types::currencies::Currencies, u64)> =
+            account.balances.into_iter().collect();
         Ok(balances)
     }
 
-    async fn get_orderbook_state(&self) ->  RpcResult<(Vec<(Price, Qty)>, Vec<(Price, Qty)>)> {
+    async fn get_orderbook_state(&self) -> RpcResult<(Vec<(Price, Qty)>, Vec<(Price, Qty)>)> {
         let mut host = SequencerHost::new(vec![], self.data_dir.clone());
-        let orderbook = OrderBook::load(&mut host)
-            .map_err(|e| ErrorObject::owned::<()>(-32000, format!("Failed to load orderbook: {:?}", e), None))?;
+        let orderbook = OrderBook::load(&mut host).map_err(|e| {
+            ErrorObject::owned::<()>(-32000, format!("Failed to load orderbook: {:?}", e), None)
+        })?;
         let mut bids = Vec::new();
         for (price, levels) in orderbook.bids.iter().rev() {
             let total_qty: Qty = levels.iter().map(|level| level.qty).sum();

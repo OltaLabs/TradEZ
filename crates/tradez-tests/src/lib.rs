@@ -2,7 +2,6 @@
 mod client;
 #[cfg(test)]
 mod sequencer;
-
 #[cfg(test)]
 mod setup;
 

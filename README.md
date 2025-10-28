@@ -17,6 +17,11 @@ Launch tests :
 cargo build --release && cargo test --package tradez-tests --lib
 ```
 
+Launch local environment :
+```
+cd tradez-tests && cargo run --release
+```
+
 TODO:
 - Make RPC nodes
 - Fix buy/sell with faucet

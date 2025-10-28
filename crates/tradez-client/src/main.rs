@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 use jsonrpsee::http_client::HttpClientBuilder;
 use rlp::Encodable;
-use tradez_types::{api::TradezRpcClient, position::{APIOrder, CancelOrder, Faucet}};
+use tradez_types::{
+    api::TradezRpcClient,
+    position::{APIOrder, CancelOrder, Faucet},
+};
 
 pub mod wallet;
 
@@ -23,7 +26,7 @@ enum AppSubcommand {
     /// Wallet management commands
     Wallet(Wallet),
     /// Get state infos
-    Get(GetInfos)
+    Get(GetInfos),
 }
 
 #[derive(Parser, Debug)]
@@ -155,10 +158,10 @@ async fn main() {
                         "Closing position with ID: {} for wallet: {}",
                         position_id, wallet_cmd.name
                     );
-                    let cancel_order = CancelOrder { order_id: position_id };
-                    let signature = wallet
-                        .sign_message(&cancel_order.rlp_bytes())
-                        .unwrap();
+                    let cancel_order = CancelOrder {
+                        order_id: position_id,
+                    };
+                    let signature = wallet.sign_message(&cancel_order.rlp_bytes()).unwrap();
                     let result = TradezRpcClient::cancel_order(&client, cancel_order, signature)
                         .await
                         .unwrap();
@@ -170,37 +173,29 @@ async fn main() {
                         "Requesting faucet of amount: {} for wallet: {}",
                         amount, wallet_cmd.name
                     );
-                    let faucet = Faucet {
-                        amount,
-                    };
-                    let signature = wallet
-                        .sign_message(&faucet.rlp_bytes())
-                        .unwrap();
+                    let faucet = Faucet { amount };
+                    let signature = wallet.sign_message(&faucet.rlp_bytes()).unwrap();
                     let result = TradezRpcClient::faucet(&client, faucet, signature)
                         .await
                         .unwrap();
                     println!("Result from server: {}", result);
                 }
             }
-        },
-        AppSubcommand::Get(get_cmd)  => {
-            match get_cmd.command {
-                GetInfosCommand::OrderbookState {} => {
-                    println!("Fetching orderbook state...");
-                    let (bids, asks) = TradezRpcClient::get_orderbook_state(&client)
-                        .await
-                        .unwrap();
-                    println!("Bids: {:?}", bids);
-                    println!("Asks: {:?}", asks);
-                }
-                GetInfosCommand::Balances { address } => {
-                    println!("Fetching balances for address: {}", address);
-                    let balances = TradezRpcClient::get_balances(&client, address)
-                        .await
-                        .unwrap();
-                    println!("Balances: {:?}", balances);
-                }
-            }
         }
+        AppSubcommand::Get(get_cmd) => match get_cmd.command {
+            GetInfosCommand::OrderbookState {} => {
+                println!("Fetching orderbook state...");
+                let (bids, asks) = TradezRpcClient::get_orderbook_state(&client).await.unwrap();
+                println!("Bids: {:?}", bids);
+                println!("Asks: {:?}", asks);
+            }
+            GetInfosCommand::Balances { address } => {
+                println!("Fetching balances for address: {}", address);
+                let balances = TradezRpcClient::get_balances(&client, address)
+                    .await
+                    .unwrap();
+                println!("Balances: {:?}", balances);
+            }
+        },
     }
 }

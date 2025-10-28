@@ -6,7 +6,11 @@ use tezos_smart_rollup::inbox::InboxMessage;
 use tezos_smart_rollup::michelson::MichelsonBytes;
 use tezos_smart_rollup::prelude::*;
 use tradez_types::{
-    KernelMessage, SignedInput, address::Address, currencies::Currencies, orderbook::{Event, OrderBook}, position::Side
+    KernelMessage, SignedInput,
+    address::Address,
+    currencies::Currencies,
+    orderbook::{Event, OrderBook},
+    position::Side,
 };
 
 use crate::account::Account;
@@ -38,10 +42,7 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                             .unwrap_or(Account::new(caller));
                         // TODO: Check nonce with account nonce (can't do now because of tests)
                         account.nonce = account.nonce.checked_add(1).unwrap();
-                        host.write_debug(&format!(
-                            "Account before placing order: {:?}\n",
-                            account
-                        ));
+                        host.write_debug(&format!("Account before placing order: {:?}\n", account));
                         match order.side {
                             Side::Ask => {
                                 let balance = account.balances.entry(Currencies::XTZ).or_insert(0);

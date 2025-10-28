@@ -1,6 +1,9 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-use crate::{currencies::Currencies, position::{APIOrder, CancelOrder, Faucet, Price, Qty}};
+use crate::{
+    currencies::Currencies,
+    position::{APIOrder, CancelOrder, Faucet, Price, Qty},
+};
 
 #[rpc(client, server)]
 pub trait TradezRpc {
