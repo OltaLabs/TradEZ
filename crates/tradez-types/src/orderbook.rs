@@ -19,7 +19,9 @@ pub enum Event {
     },
     Trade {
         maker_id: u64,
+        maker_user: Address,
         taker_id: u64,
+        taker_user: Address,
         price: Price,
         qty: Qty,
     },
@@ -324,7 +326,9 @@ impl OrderBook {
                 maker.remaining -= exec_qty;
                 out.push(Event::Trade {
                     maker_id: maker.id,
+                    maker_user: maker.user,
                     taker_id: taker.id,
+                    taker_user: taker.user,
                     price: best_ask_price,
                     qty: exec_qty,
                 });
@@ -366,7 +370,9 @@ impl OrderBook {
                 maker.remaining -= exec_qty;
                 out.push(Event::Trade {
                     maker_id: maker.id,
+                    maker_user: maker.user,
                     taker_id: taker.id,
+                    taker_user: taker.user,
                     price: best_bid_price,
                     qty: exec_qty,
                 });

@@ -157,7 +157,7 @@ impl Runtime for SequencerHost {
         Ok(table
             .get(path.to_string().as_str())
             .unwrap()
-            .unwrap()
+            .ok_or(RuntimeError::PathNotFound)?
             .value())
     }
 

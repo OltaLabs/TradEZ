@@ -28,7 +28,7 @@ mod tests {
                         smart_rollup_client,
                         _tradez_sequencer,
                         tradez_client| {
-                tradez_client.buy(10, 1000);
+                tradez_client.sell(10, 1000);
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 octez_client.bake_l1_blocks(2);
                 std::thread::sleep(std::time::Duration::from_secs(2));
@@ -38,7 +38,7 @@ mod tests {
                     .unwrap()
                     .unwrap();
                 let order_book = OrderBook::decode(&Rlp::new(&bytes)).unwrap();
-                assert_eq!(order_book.best_bid(), Some(1000));
+                assert_eq!(order_book.best_ask(), Some(1000));
             },
         )
         .await

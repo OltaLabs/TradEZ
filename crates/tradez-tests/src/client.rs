@@ -98,4 +98,32 @@ impl Client {
             .wait()
             .expect("Failed to wait for client open-position command");
     }
+
+    pub fn faucet(&self, amount: u64) {
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
+            .arg("--url")
+            .arg(&self.rpc_url)
+            .arg("wallet")
+            .arg("--dirpath")
+            .arg(self.wallet_dir.path())
+            .arg("faucet")
+            .arg("--amount")
+            .arg(amount.to_string());
+        if self.config.verbose {
+            command.stdout(std::process::Stdio::inherit());
+            command.stderr(std::process::Stdio::inherit());
+        } else {
+            command.stdout(std::process::Stdio::piped());
+            command.stderr(std::process::Stdio::piped());
+        }
+        if self.config.print_commands {
+            println!("> {:?}", command);
+        }
+        command
+            .spawn()
+            .expect("Failed to spawn client faucet command")
+            .wait()
+            .expect("Failed to wait for client faucet command");
+    }
 }

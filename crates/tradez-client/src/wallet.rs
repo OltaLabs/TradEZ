@@ -12,7 +12,7 @@ impl Wallet {
         if !Path::new(dirpath).is_dir() {
             std::fs::create_dir_all(dirpath).expect("Failed to create wallet directory");
         }
-        let filepath = format!("{}/{}.json", dirpath, name);
+        let filepath = format!("{}/{}", dirpath, name);
         if Path::new(&filepath).is_file() {
             // Load existing wallet from file
             Self {
@@ -33,7 +33,10 @@ impl Wallet {
 
     pub fn sign_message(&self, message: &[u8]) -> Result<Vec<u8>, String> {
         println!("Signing with key: {:?}", self.local_signer.public_key());
-        let signature = self.local_signer.sign_message_sync(message).map_err(|e| e.to_string())?;
+        let signature = self
+            .local_signer
+            .sign_message_sync(message)
+            .map_err(|e| e.to_string())?;
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&signature.as_bytes());
         Ok(bytes)

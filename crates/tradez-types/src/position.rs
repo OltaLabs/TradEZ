@@ -14,13 +14,17 @@ pub struct APIOrder {
     pub side: Side,
     pub size: Qty,
     pub price: Price,
-    pub ts: Ts,
+    pub nonce: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq)]
 pub struct CancelOrder {
     pub order_id: u64,
-    pub signature: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq)]
+pub struct Faucet {
+    pub amount: Qty,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]

@@ -2,8 +2,9 @@ use jsonrpsee::{core::RpcResult, server::ServerBuilder};
 use rlp::Encodable;
 use tradez_kernel::kernel_loop;
 use tradez_types::{
+    KernelMessage, SignedInput,
     api::TradezRpcServer,
-    position::{APIOrder, CancelOrder}, SignedInput,
+    position::{APIOrder, CancelOrder, Faucet},
 };
 
 use crate::host::SequencerHost;
@@ -20,10 +21,11 @@ impl TradezRpcServer for TradezRpcImpl {
             "Received order: side={}, size={}, price={}",
             api_order.side, api_order.size, api_order.price
         );
-        let inputs = vec![SignedInput::new(
-            api_order,
-            signature,
-        ).rlp_bytes().to_vec()];
+        let inputs = vec![
+            SignedInput::new(KernelMessage::PlaceOrder(api_order), signature)
+                .rlp_bytes()
+                .to_vec(),
+        ];
         let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
         println!("Executing order in native kernel...");
         kernel_loop(&mut host);
@@ -39,13 +41,54 @@ impl TradezRpcServer for TradezRpcImpl {
         Ok(String::from("Order received"))
     }
 
-    async fn cancel_order(&self, params: CancelOrder, _signature: Vec<u8>) -> RpcResult<String> {
-        println!("Received cancel request for order ID: {}", params.order_id);
+    async fn cancel_order(&self, params: CancelOrder, signature: Vec<u8>) -> RpcResult<String> {
+        let inputs = vec![
+            SignedInput::new(KernelMessage::CancelOrder(params), signature)
+                .rlp_bytes()
+                .to_vec(),
+        ];
+        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
+        println!("Executing cancel order in native kernel...");
+        kernel_loop(&mut host);
+        if let Err(e) = self
+            .smart_rollup_node_client
+            .inject_inbox_messages(inputs)
+            .await
+        {
+            println!("Failed to inject inbox message: {:?}", e);
+        } else {
+            println!("Successfully injected inbox message.");
+        }
         Ok(String::from("Cancel request received"))
+    }
+
+    async fn faucet(&self, params: Faucet, signature: Vec<u8>) -> RpcResult<String> {
+        let inputs = vec![
+            SignedInput::new(KernelMessage::Faucet(params), signature)
+                .rlp_bytes()
+                .to_vec(),
+        ];
+        let mut host = SequencerHost::new(inputs.clone(), self.data_dir.clone());
+        println!("Executing faucet in native kernel...");
+        kernel_loop(&mut host);
+        if let Err(e) = self
+            .smart_rollup_node_client
+            .inject_inbox_messages(inputs)
+            .await
+        {
+            println!("Failed to inject inbox message: {:?}", e);
+        } else {
+            println!("Successfully injected inbox message.");
+        }
+        Ok(String::from("Faucet request received"))
     }
 }
 
-pub async fn launch_server(rpc_port: u16, smart_rollup_addr: String, data_dir: String) -> std::io::Result<()> {
+pub async fn launch_server(
+    rpc_port: u16,
+    smart_rollup_addr: String,
+    data_dir: String,
+) -> std::io::Result<()> {
     println!("Starting TradEZ JSON-RPC server...");
 
     let rpc_impl = TradezRpcImpl {

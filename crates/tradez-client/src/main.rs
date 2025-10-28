@@ -1,9 +1,7 @@
-use std::time::Instant;
-
 use clap::{Parser, Subcommand};
 use jsonrpsee::http_client::HttpClientBuilder;
-use tradez_types::{api::TradezRpcClient, position::APIOrder};
 use rlp::Encodable;
+use tradez_types::{api::TradezRpcClient, position::{APIOrder, CancelOrder, Faucet}};
 
 pub mod wallet;
 
@@ -70,6 +68,12 @@ enum WalletCommand {
         #[arg(short, long)]
         position_id: u64,
     },
+    /// Faucet tokens to a wallet
+    Faucet {
+        /// Amount to faucet
+        #[arg(short, long)]
+        amount: u64,
+    },
 }
 
 #[tokio::main]
@@ -108,24 +112,20 @@ async fn main() {
                         side, size, price, wallet_cmd.name
                     );
                     let api_order = APIOrder {
-                            side: if side == 0 {
-                                tradez_types::position::Side::Bid
-                            } else {
-                                tradez_types::position::Side::Ask
-                            },
-                            // TODO: Fix
-                            ts: Instant::now().elapsed().as_millis() as u64,
-                            size,
-                            price,
+                        side: if side == 0 {
+                            tradez_types::position::Side::Bid
+                        } else {
+                            tradez_types::position::Side::Ask
+                        },
+                        // TODO: Fix
+                        nonce: 0,
+                        size,
+                        price,
                     };
                     let signature = wallet.sign_message(&api_order.rlp_bytes()).unwrap();
-                    let result = TradezRpcClient::send_order(
-                        &client,
-                        api_order,
-                        signature
-                    )
-                    .await
-                    .unwrap();
+                    let result = TradezRpcClient::send_order(&client, api_order, signature)
+                        .await
+                        .unwrap();
                     println!("Result from server: {}", result);
                 }
                 WalletCommand::ClosePosition { position_id } => {
@@ -133,7 +133,31 @@ async fn main() {
                         "Closing position with ID: {} for wallet: {}",
                         position_id, wallet_cmd.name
                     );
+                    let cancel_order = CancelOrder { order_id: position_id };
+                    let signature = wallet
+                        .sign_message(&cancel_order.rlp_bytes())
+                        .unwrap();
+                    let result = TradezRpcClient::cancel_order(&client, cancel_order, signature)
+                        .await
+                        .unwrap();
+                    println!("Result from server: {}", result);
                     // Implement close position logic here
+                }
+                WalletCommand::Faucet { amount } => {
+                    println!(
+                        "Requesting faucet of amount: {} for wallet: {}",
+                        amount, wallet_cmd.name
+                    );
+                    let faucet = Faucet {
+                        amount,
+                    };
+                    let signature = wallet
+                        .sign_message(&faucet.rlp_bytes())
+                        .unwrap();
+                    let result = TradezRpcClient::faucet(&client, faucet, signature)
+                        .await
+                        .unwrap();
+                    println!("Result from server: {}", result);
                 }
             }
         }
