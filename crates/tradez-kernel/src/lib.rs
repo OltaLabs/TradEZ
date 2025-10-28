@@ -43,6 +43,7 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                         // TODO: Check nonce with account nonce (can't do now because of tests)
                         account.nonce = account.nonce.checked_add(1).unwrap();
                         host.write_debug(&format!("Account before placing order: {:?}\n", account));
+                        // TODO: Fix computations and unwraps
                         match order.side {
                             Side::Ask => {
                                 let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
@@ -53,9 +54,7 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                             }
                             Side::Bid => {
                                 let balance = account.balances.entry(Currencies::USDC).or_insert(0);
-                                *balance = balance
-                                    .checked_sub(order.size.checked_mul(order.price).unwrap())
-                                    .unwrap();
+                                *balance = balance.checked_sub(order.size).unwrap();
                                 // Fees 0.1%
                                 let fee = std::cmp::min(1, order.size.checked_div(1000).unwrap());
                                 *balance = balance.checked_sub(fee).unwrap();
@@ -76,58 +75,70 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                         );
                         for event in events {
                             host.write_debug(&format!("Order book event: {:?}\n", event));
-                            if let Event::Trade {
-                                maker_id,
-                                maker_user,
-                                taker_id,
-                                taker_user,
-                                price,
-                                qty,
-                            } = event
-                            {
-                                // Update balances for maker and taker
-                                let mut maker_account = Account::load(host, &maker_user)
-                                    .unwrap()
-                                    .unwrap_or(Account::new(maker_user));
-                                let mut taker_account = Account::load(host, &taker_user)
-                                    .unwrap()
-                                    .unwrap_or(Account::new(taker_user));
-                                // Maker sold qty of XTZ, receives USDC
-                                let maker_xtz_balance =
-                                    maker_account.balances.entry(Currencies::XTZ).or_insert(0);
-                                *maker_xtz_balance = maker_xtz_balance.checked_sub(qty).unwrap();
-                                let maker_usdc_balance =
-                                    maker_account.balances.entry(Currencies::USDC).or_insert(0);
-                                *maker_usdc_balance = maker_usdc_balance
-                                    .checked_add(qty.checked_mul(price).unwrap())
-                                    .unwrap();
-                                // Taker bought qty of XTZ, pays USDC
-                                let taker_xtz_balance =
-                                    taker_account.balances.entry(Currencies::XTZ).or_insert(0);
-                                *taker_xtz_balance = taker_xtz_balance.checked_add(qty).unwrap();
-                                let taker_usdc_balance =
-                                    taker_account.balances.entry(Currencies::USDC).or_insert(0);
-                                *taker_usdc_balance = taker_usdc_balance
-                                    .checked_sub(qty.checked_mul(price).unwrap())
-                                    .unwrap();
-                                // Remove partially or fully filled orders from accounts
+                            match event {
+                                Event::Trade {
+                                    maker_id,
+                                    maker_user,
+                                    taker_id,
+                                    taker_user,
+                                    price: _,
+                                    qty,
+                                } => 
                                 {
-                                    let maker_order = maker_account.orders.get_mut(&maker_id).unwrap();
-                                    maker_order.remaining = maker_order.remaining.checked_sub(qty).unwrap();
-                                    if maker_order.remaining == 0 {
-                                        maker_account.orders.remove(&maker_id);
+                                    // Update balances for maker and taker
+                                    let mut maker_account = Account::load(host, &maker_user)
+                                        .unwrap()
+                                        .unwrap_or(Account::new(maker_user));
+                                    let mut taker_account = Account::load(host, &taker_user)
+                                        .unwrap()
+                                        .unwrap_or(Account::new(taker_user));
+                                    // Maker sold qty of XTZ, receives USDC
+                                    // TODO: Fix balance calculations
+                                    let maker_xtz_balance =
+                                        maker_account.balances.entry(Currencies::XTZ).or_insert(0);
+                                    *maker_xtz_balance = maker_xtz_balance.checked_sub(qty).unwrap();
+                                    let maker_usdc_balance =
+                                        maker_account.balances.entry(Currencies::USDC).or_insert(0);
+                                    *maker_usdc_balance = maker_usdc_balance
+                                        .checked_add(qty)
+                                        .unwrap();
+                                    // Taker bought qty of XTZ, pays USDC
+                                    let taker_xtz_balance =
+                                        taker_account.balances.entry(Currencies::XTZ).or_insert(0);
+                                    *taker_xtz_balance = taker_xtz_balance.checked_add(qty).unwrap();
+                                    let taker_usdc_balance =
+                                        taker_account.balances.entry(Currencies::USDC).or_insert(0);
+                                    *taker_usdc_balance = taker_usdc_balance
+                                        .checked_sub(qty).unwrap();
+                                    // Remove partially or fully filled orders from accounts
+                                    {
+                                        let maker_order = maker_account.orders.get_mut(&maker_id).unwrap();
+                                        maker_order.remaining = maker_order.remaining.checked_sub(qty).unwrap();
+                                        if maker_order.remaining == 0 {
+                                            maker_account.orders.remove(&maker_id);
+                                        }
                                     }
-                                }
-                                {
-                                    let taker_order = taker_account.orders.get_mut(&taker_id).unwrap();
-                                    taker_order.remaining = taker_order.remaining.checked_sub(qty).unwrap();
-                                    if taker_order.remaining == 0 {
-                                        taker_account.orders.remove(&taker_id);
+                                    {
+                                        let taker_order = taker_account.orders.get_mut(&taker_id).unwrap();
+                                        taker_order.remaining = taker_order.remaining.checked_sub(qty).unwrap();
+                                        if taker_order.remaining == 0 {
+                                            taker_account.orders.remove(&taker_id);
+                                        }
                                     }
+                                    // Save updated accounts
+                                    maker_account.save(host).unwrap();
+                                    taker_account.save(host).unwrap();
                                 }
-                                // Save updated accounts
-                                maker_account.save(host).unwrap();
-                                taker_account.save(host).unwrap();
+                                Event::Done { id, user } => {
+                                    host.write_debug(&format!("Order done: ID={}, User={:?}\n", id, user));
+                                    // Remove order from user's account
+                                    let mut user_account = Account::load(host, &user)
+                                        .unwrap()
+                                        .unwrap_or(Account::new(user));
+                                    user_account.orders.remove(&id);
+                                    user_account.save(host).unwrap();
+                                }
+                                _ => {}
                             }
                         }
                     }

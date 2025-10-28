@@ -20,10 +20,11 @@ async fn main() {
                     _smart_rollup_client,
                     _tradez_sequencer,
                     _tradez_client| {
-                        loop {
-                            octez_client.bake_l1_blocks(1);
-                            tokio::time::sleep(Duration::from_secs(2)).await;
-                        }
-                    },
-    ).await;
+            loop {
+                octez_client.bake_l1_blocks(1);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        },
+    )
+    .await;
 }

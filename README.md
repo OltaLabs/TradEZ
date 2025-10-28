@@ -23,6 +23,7 @@ cargo build --release && cd tradez-tests && cargo run --release
 ```
 
 TODO:
+- Fix all computation orders (not correctly work especially partially filled that doesn't work at all)
 - Make RPC nodes
 - Stream trades that succeeded 
 - Fix buy/sell with faucet

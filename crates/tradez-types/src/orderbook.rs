@@ -26,6 +26,7 @@ pub enum Event {
         qty: Qty,
     },
     Done {
+        user: Address,
         id: u64,
     }, // ordre entièrement exécuté
     Cancelled {
@@ -216,7 +217,7 @@ impl OrderBook {
             };
             book.entry(price).or_default().push_back(taker);
         } else {
-            out.push(Event::Done { id });
+            out.push(Event::Done { user: user.clone(), id });
         }
         id
     }
@@ -257,7 +258,7 @@ impl OrderBook {
                 reason: "unfilled_market",
             });
         } else {
-            out.push(Event::Done { id });
+            out.push(Event::Done { user: user.clone(), id });
         }
         id
     }
@@ -337,7 +338,7 @@ impl OrderBook {
                     queue.push_front(maker); // FIFO conservé
                     break;
                 } else {
-                    out.push(Event::Done { id: maker.id });
+                    out.push(Event::Done { user: maker.user.clone(), id: maker.id });
                 }
             }
             if !queue.is_empty() {
@@ -381,7 +382,7 @@ impl OrderBook {
                     queue.push_front(maker);
                     break;
                 } else {
-                    out.push(Event::Done { id: maker.id });
+                    out.push(Event::Done { user: maker.user.clone(), id: maker.id });
                 }
             }
             if !queue.is_empty() {
