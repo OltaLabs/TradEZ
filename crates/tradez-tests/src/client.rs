@@ -126,4 +126,53 @@ impl Client {
             .wait()
             .expect("Failed to wait for client faucet command");
     }
+
+    #[allow(dead_code)]
+    pub fn get_balances(&self, address: String) -> String {
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
+            .arg("--url")
+            .arg(&self.rpc_url)
+            .arg("get")
+            .arg("balances")
+            .arg("--address")
+            .arg(address);
+        if self.config.verbose {
+            command.stdout(std::process::Stdio::inherit());
+            command.stderr(std::process::Stdio::inherit());
+        } else {
+            command.stdout(std::process::Stdio::piped());
+            command.stderr(std::process::Stdio::piped());
+        }
+        if self.config.print_commands {
+            println!("> {:?}", command);
+        }
+        let output = command
+            .output()
+            .expect("Failed to execute client get balances command");
+        String::from_utf8_lossy(&output.stdout).to_string()
+    }
+
+    pub fn get_orderbook_state(&self) -> String {
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
+            .arg("--url")
+            .arg(&self.rpc_url)
+            .arg("get")
+            .arg("orderbook-state");
+        if self.config.verbose {
+            command.stdout(std::process::Stdio::inherit());
+            command.stderr(std::process::Stdio::inherit());
+        } else {
+            command.stdout(std::process::Stdio::piped());
+            command.stderr(std::process::Stdio::piped());
+        }
+        if self.config.print_commands {
+            println!("> {:?}", command);
+        }
+        let output = command
+            .output()
+            .expect("Failed to execute client get orderbook state command");
+        String::from_utf8_lossy(&output.stdout).to_string()
+    }
 }

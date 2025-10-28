@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use alloy_primitives::hex::FromHex;
 use rlp::{Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,15 @@ impl From<alloy_primitives::Address> for Address {
 impl From<[u8; 20]> for Address {
     fn from(bytes: [u8; 20]) -> Self {
         Address(alloy_primitives::Address::from(bytes))
+    }
+}
+
+impl FromHex for Address {
+    type Error = alloy_primitives::hex::FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        let addr = alloy_primitives::Address::from_hex(hex)?;
+        Ok(Address(addr))
     }
 }
 

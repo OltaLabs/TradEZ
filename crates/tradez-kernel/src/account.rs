@@ -3,13 +3,7 @@ use std::collections::HashMap;
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::{RefPath, concat};
-use tradez_types::{address::Address, error::TradezError};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Currencies {
-    USDC,
-    XTZ,
-}
+use tradez_types::{address::Address, currencies::Currencies, error::TradezError};
 
 #[derive(Debug)]
 pub struct Account {

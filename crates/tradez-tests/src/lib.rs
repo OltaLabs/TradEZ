@@ -39,6 +39,8 @@ mod tests {
                     .unwrap();
                 let order_book = OrderBook::decode(&Rlp::new(&bytes)).unwrap();
                 assert_eq!(order_book.best_ask(), Some(1000));
+                let orderbook_state = tradez_client.get_orderbook_state();
+                drop(orderbook_state);
             },
         )
         .await

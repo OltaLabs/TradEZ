@@ -1,6 +1,6 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-use crate::position::{APIOrder, CancelOrder, Faucet};
+use crate::{currencies::Currencies, position::{APIOrder, CancelOrder, Faucet, Price, Qty}};
 
 #[rpc(client, server)]
 pub trait TradezRpc {
@@ -12,4 +12,10 @@ pub trait TradezRpc {
 
     #[method(name = "faucet")]
     async fn faucet(&self, params: Faucet, signature: Vec<u8>) -> RpcResult<String>;
+
+    #[method(name = "get_balances")]
+    async fn get_balances(&self, address: String) -> RpcResult<Vec<(Currencies, u64)>>;
+
+    #[method(name = "get_orderbook_state")]
+    async fn get_orderbook_state(&self) -> RpcResult<(Vec<(Price, Qty)>, Vec<(Price, Qty)>)>;
 }

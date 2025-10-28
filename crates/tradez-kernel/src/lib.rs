@@ -6,15 +6,12 @@ use tezos_smart_rollup::inbox::InboxMessage;
 use tezos_smart_rollup::michelson::MichelsonBytes;
 use tezos_smart_rollup::prelude::*;
 use tradez_types::{
-    KernelMessage, SignedInput,
-    address::Address,
-    orderbook::{Event, OrderBook},
-    position::Side,
+    KernelMessage, SignedInput, address::Address, currencies::Currencies, orderbook::{Event, OrderBook}, position::Side
 };
 
-use crate::account::{Account, Currencies};
+use crate::account::Account;
 
-mod account;
+pub mod account;
 
 //TODO: Fix all unwraps
 fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {

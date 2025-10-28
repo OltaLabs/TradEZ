@@ -22,6 +22,8 @@ struct Args {
 enum AppSubcommand {
     /// Wallet management commands
     Wallet(Wallet),
+    /// Get state infos
+    Get(GetInfos)
 }
 
 #[derive(Parser, Debug)]
@@ -76,11 +78,32 @@ enum WalletCommand {
     },
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct GetInfos {
+    #[clap(subcommand)]
+    command: GetInfosCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum GetInfosCommand {
+    /// Get orderbook state
+    OrderbookState {},
+    /// Get balances of an address
+    Balances {
+        /// Address to get balances for
+        /// Hexadecimal string representation of the address
+        #[arg(short, long)]
+        address: String,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
     let server_url = args.url;
+    let client = HttpClientBuilder::new().build(server_url).unwrap();
     match args.app {
         AppSubcommand::Wallet(wallet_cmd) => {
             let wallet = wallet::Wallet::load_wallet(
@@ -88,7 +111,6 @@ async fn main() {
                 &wallet_cmd.name,
                 wallet_cmd.password,
             );
-            let client = HttpClientBuilder::new().build(server_url).unwrap();
 
             match wallet_cmd.command {
                 WalletCommand::Create {} => {
@@ -158,6 +180,25 @@ async fn main() {
                         .await
                         .unwrap();
                     println!("Result from server: {}", result);
+                }
+            }
+        },
+        AppSubcommand::Get(get_cmd)  => {
+            match get_cmd.command {
+                GetInfosCommand::OrderbookState {} => {
+                    println!("Fetching orderbook state...");
+                    let (bids, asks) = TradezRpcClient::get_orderbook_state(&client)
+                        .await
+                        .unwrap();
+                    println!("Bids: {:?}", bids);
+                    println!("Asks: {:?}", asks);
+                }
+                GetInfosCommand::Balances { address } => {
+                    println!("Fetching balances for address: {}", address);
+                    let balances = TradezRpcClient::get_balances(&client, address)
+                        .await
+                        .unwrap();
+                    println!("Balances: {:?}", balances);
                 }
             }
         }

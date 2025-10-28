@@ -39,9 +39,9 @@ pub type SideLadder = BTreeMap<Price, VecDeque<Order>>;
 #[derive(Default, Debug)]
 pub struct OrderBook {
     // asks : prix croissant ; bids : prix croissant (on itère à rebours pour best bid)
-    asks: SideLadder,
-    bids: SideLadder,
-    next_id: u64,
+    pub asks: SideLadder,
+    pub bids: SideLadder,
+    pub next_id: u64,
 }
 
 impl Encodable for OrderBook {

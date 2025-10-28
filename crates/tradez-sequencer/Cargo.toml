@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-trait.workspace = true
+alloy-primitives.workspace = true
 clap.workspace = true
 tokio.workspace = true
 serde.workspace = true

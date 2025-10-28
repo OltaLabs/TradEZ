@@ -18,6 +18,7 @@ cargo build --release && cargo test --package tradez-tests --lib
 ```
 
 TODO:
+- Make RPC nodes
 - Fix buy/sell with faucet
 - Unwraps in kernel
 - Check maybe remove nonce

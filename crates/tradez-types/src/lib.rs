@@ -8,6 +8,7 @@ pub mod api;
 pub mod error;
 pub mod orderbook;
 pub mod position;
+pub mod currencies;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignedInput<T>
