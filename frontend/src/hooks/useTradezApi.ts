@@ -18,6 +18,7 @@ export type RpcCancelOrder = {
 
 export type RpcFaucet = {
   amount: RpcQty;
+  currency: RpcCurrency;
 };
 
 export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;

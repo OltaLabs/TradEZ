@@ -3,7 +3,7 @@ use std::fmt::Display;
 use rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::address::Address;
+use crate::{address::Address, currencies::Currencies};
 
 pub type Price = u64; // microUSDC par XTZ (1e6)
 pub type Qty = u64; // microXTZ (1e6)
@@ -24,6 +24,7 @@ pub struct CancelOrder {
 #[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq)]
 pub struct Faucet {
     pub amount: Qty,
+    pub currency: Currencies
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]

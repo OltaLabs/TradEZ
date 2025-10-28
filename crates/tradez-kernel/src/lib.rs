@@ -184,14 +184,23 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                                 .unwrap(),
                         );
                         host.write_debug(&format!(
-                            "Faucet request: user={:?}, amount={}\n",
-                            caller, faucet.amount
+                            "Faucet request: user={:?}, amount={} currency={:?}\n",
+                            caller, faucet.amount, faucet.currency
                         ));
                         let mut account = Account::load(host, &caller)
                             .unwrap()
                             .unwrap_or(Account::new(caller));
-                        let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
-                        *balance = balance.checked_add(faucet.amount).unwrap();
+                        match faucet.currency {
+                            Currencies::XTZ => {
+                                let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
+                                *balance = balance.checked_add(faucet.amount).unwrap();
+                            }
+                            Currencies::USDC => {
+                                let balance = account.balances.entry(Currencies::USDC).or_insert(0);
+                                *balance = balance.checked_add(faucet.amount).unwrap();
+                            }
+                        };
+                        host.write_debug(&format!("Account after faucet: {:?}\n", account));
                         account.save(host).unwrap();
                     }
                 }

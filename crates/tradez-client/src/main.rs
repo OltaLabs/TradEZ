@@ -78,6 +78,10 @@ enum WalletCommand {
         /// Amount to faucet
         #[arg(short, long)]
         amount: u64,
+
+        /// Currency to faucet (0 = USDC, 1 = XTZ)
+        #[arg(short, long, default_value_t = 0u8)]
+        currency: u8,
     },
 }
 
@@ -175,12 +179,19 @@ async fn main() {
                     println!("Result from server: {}", result);
                     // Implement close position logic here
                 }
-                WalletCommand::Faucet { amount } => {
+                WalletCommand::Faucet { amount, currency } => {
                     println!(
                         "Requesting faucet of amount: {} for wallet: {}",
                         amount, wallet_cmd.name
                     );
-                    let faucet = Faucet { amount };
+                    let faucet = Faucet { amount, currency: match currency {
+                        0 => tradez_types::currencies::Currencies::USDC,
+                        1 => tradez_types::currencies::Currencies::XTZ,
+                        _ => {
+                            println!("Invalid currency specified. Defaulting to USDC.");
+                            tradez_types::currencies::Currencies::USDC
+                        }
+                    } };
                     let signature = wallet.sign_message(&faucet.rlp_bytes()).unwrap();
                     let result = TradezRpcClient::faucet(&client, faucet, signature)
                         .await

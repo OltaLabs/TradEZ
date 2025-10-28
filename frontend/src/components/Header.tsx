@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Wallet, LogOut, Coins } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
-import { useTradezApi } from "@/hooks/useTradezApi";
+import { useTradezApi, RpcCurrency } from "@/hooks/useTradezApi";
 
 const DEFAULT_FAUCET_AMOUNT = 1_000_000_000n;
 
@@ -13,9 +13,10 @@ const Header = () => {
   const { toast } = useToast();
   const { faucet, isApiConfigured } = useTradezApi();
   const [claiming, setClaiming] = useState(false);
+  const [claimingCurrency, setClaimingCurrency] = useState<RpcCurrency | null>(null);
 
-  const handleClaimTestTokens = async () => {
-    if (!account || claiming) {
+  const requestFaucet = async (currency: RpcCurrency) => {
+    if (!account || claimingCurrency) {
       return;
     }
     if (!isApiConfigured) {
@@ -27,9 +28,9 @@ const Header = () => {
       return;
     }
     try {
-      setClaiming(true);
+      setClaimingCurrency(currency);
       const amount = DEFAULT_FAUCET_AMOUNT;
-      const encoded = ethers.encodeRlp([ethers.toBeArray(amount)]);
+      const encoded = ethers.encodeRlp([ethers.toBeArray(amount), ethers.toBeArray(currency === "XTZ" ? 1n : 0n)]);
       const messageBytes = ethers.getBytes(encoded);
       const signature = await signMessage(messageBytes);
       if (!signature) {
@@ -38,11 +39,12 @@ const Header = () => {
       const result = await faucet(
         {
           amount: Number(amount),
+          currency,
         },
         signature
       );
       toast({
-        title: "Test XTZ claimed",
+        title: `Test ${currency} claimed`,
         description: result || "Your faucet request was submitted.",
       });
     } catch (error: any) {
@@ -53,7 +55,7 @@ const Header = () => {
         variant: "destructive",
       });
     } finally {
-      setClaiming(false);
+      setClaimingCurrency(null);
     }
   };
 
@@ -71,15 +73,26 @@ const Header = () => {
 
         <div className="flex items-center gap-2">
           {account && (
-            <Button
-              variant="secondary"
-              onClick={handleClaimTestTokens}
-              disabled={claiming}
-              className="flex items-center gap-2"
-            >
-              <Coins className="w-4 h-4" />
-              {claiming ? "Claiming..." : "Claim test XTZ"}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => requestFaucet("XTZ")}
+                disabled={claimingCurrency !== null}
+                className="flex items-center gap-2"
+              >
+                <Coins className="w-4 h-4" />
+                {claimingCurrency === "XTZ" ? "Claiming..." : "Claim test XTZ"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => requestFaucet("USDC")}
+                disabled={claimingCurrency !== null}
+                className="flex items-center gap-2"
+              >
+                <Coins className="w-4 h-4" />
+                {claimingCurrency === "USDC" ? "Claiming..." : "Claim test USDC"}
+              </Button>
+            </>
           )}
           <Button
             onClick={connectWallet}

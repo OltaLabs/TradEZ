@@ -85,7 +85,8 @@ where
         },
         sequencer.rpc_port,
     );
-    tradez_client.faucet(1_000_000_000);
+    tradez_client.faucet_xtz(1_000_000_000);
+    tradez_client.faucet_usdc(1_000_000_000);
     std::thread::sleep(std::time::Duration::from_secs(2));
     octez_client.bake_l1_blocks(1);
     std::thread::sleep(std::time::Duration::from_secs(2));
