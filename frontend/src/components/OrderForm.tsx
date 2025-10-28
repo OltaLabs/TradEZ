@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ethers } from "ethers";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,26 +7,106 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
-import { useBalances } from "@/hooks/useBalances";
+import { useTradezApi } from "@/hooks/useTradezApi";
+
+const BALANCE_REFRESH_MS = 1000;
+const DECIMALS = 6;
 
 const OrderForm = () => {
   const { account, signMessage } = useWallet();
+  const { sendOrder, getBalances, isApiConfigured } = useTradezApi();
   const { toast } = useToast();
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
   const [price, setPrice] = useState("1.2353");
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const {
-    xtz: xtzBalance,
-    usdc: usdcBalance,
-    loading: balancesLoading,
-  } = useBalances(account);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [xtzBalance, setXtzBalance] = useState<string | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+  const intervalRef = useRef<number | null>(null);
+
+  const resetBalances = useCallback(() => {
+    setXtzBalance(null);
+    setUsdcBalance(null);
+    setBalancesLoading(false);
+    setBalanceError(null);
+  }, []);
+
+  const fetchBalances = useCallback(
+    async (silent = false) => {
+      if (!account || !isApiConfigured) {
+        resetBalances();
+        return;
+      }
+      try {
+        if (!silent) {
+          setBalancesLoading(true);
+        }
+        const result = await getBalances(account);
+        let nextXtz: string | null = "0";
+        let nextUsdc: string | null = "0";
+        for (const [currency, value] of result) {
+          const units = BigInt(Math.trunc(value));
+          const formatted = ethers.formatUnits(units, DECIMALS);
+          if (currency === "XTZ") {
+            nextXtz = formatted;
+          } else if (currency === "USDC") {
+            nextUsdc = formatted;
+          }
+        }
+        setXtzBalance(nextXtz);
+        setUsdcBalance(nextUsdc);
+        setBalanceError(null);
+      } catch (error: any) {
+        console.error("Failed to fetch balances:", error);
+        setBalanceError(error?.message ?? "Unable to load balances");
+      } finally {
+        if (!silent) {
+          setBalancesLoading(false);
+        }
+      }
+    },
+    [account, getBalances, isApiConfigured, resetBalances]
+  );
+
+  useEffect(() => {
+    if (!account || !isApiConfigured) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      resetBalances();
+      return;
+    }
+
+    fetchBalances().catch(() => undefined);
+    intervalRef.current = window.setInterval(() => {
+      fetchBalances(true).catch(() => undefined);
+    }, BALANCE_REFRESH_MS);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [account, fetchBalances, isApiConfigured, resetBalances]);
 
   const handlePlaceOrder = async (side: "buy" | "sell") => {
     if (!account) {
       toast({
         title: "Wallet not connected",
         description: "Please connect your wallet to place orders",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isApiConfigured) {
+      toast({
+        title: "Backend unavailable",
+        description: "Configure VITE_TRADEZ_API_URL to place orders.",
         variant: "destructive",
       });
       return;
@@ -43,44 +124,37 @@ const OrderForm = () => {
     try {
       setSubmitting(true);
 
-      // Create order message to sign
-      const orderMessage = {
-        pair: "XTZ/USDC",
-        side,
-        type: orderType,
-        price: orderType === "limit" ? price : "market",
-        amount,
-        timestamp: Date.now(),
+      const sizeUnits = ethers.parseUnits(amount, DECIMALS);
+      const priceUnits = orderType === "limit" ? ethers.parseUnits(price, DECIMALS) : 0n;
+      const nonce = BigInt(Date.now());
+      const apiOrder = {
+        side: side === "buy" ? ("Bid" as const) : ("Ask" as const),
+        size: Number(sizeUnits),
+        price: Number(priceUnits),
+        nonce: Number(nonce),
       };
-
-      const messageToSign = JSON.stringify(orderMessage, null, 2);
-
-      // Sign the message
-      const signature = await signMessage(messageToSign);
-
+      const toMinimalBytes = (value: bigint) => ethers.getBytes(ethers.toBeHex(value));
+      const orderForSignature = [
+        toMinimalBytes(side === "buy" ? 0n : 1n),
+        toMinimalBytes(sizeUnits),
+        toMinimalBytes(priceUnits),
+        toMinimalBytes(nonce),
+      ];
+      const encodedOrder = ethers.encodeRlp(orderForSignature);
+      const signature = await signMessage(ethers.getBytes(encodedOrder));
       if (!signature) {
         throw new Error("Failed to sign message");
       }
 
-      // Send to API (mock for now)
-      console.log("Sending order to API:", {
-        order: orderMessage,
-        signature,
-        account,
-      });
-
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      const response = await sendOrder(apiOrder, signature);
       toast({
         title: "Order placed successfully",
-        description: `${side.toUpperCase()} ${amount} XTZ at ${
-          orderType === "limit" ? `$${price}` : "market price"
-        }`,
+        description: response ?? `${side.toUpperCase()} order submitted.`,
       });
 
       // Reset form
       setAmount("");
+      fetchBalances(true).catch(() => undefined);
     } catch (error: any) {
       console.error("Error placing order:", error);
       toast({
@@ -98,6 +172,12 @@ const OrderForm = () => {
   const getBalanceDisplay = (value: string | null, fallback?: string) => {
     if (!account) {
       return "Connect wallet";
+    }
+    if (!isApiConfigured) {
+      return "Backend unavailable";
+    }
+    if (balanceError) {
+      return balanceError;
     }
     if (balancesLoading && !value) {
       return "Loading...";
@@ -181,14 +261,14 @@ const OrderForm = () => {
           <div className="grid grid-cols-2 gap-3">
             <Button
               onClick={() => handlePlaceOrder("buy")}
-              disabled={!account || submitting}
+              disabled={!account || submitting || !isApiConfigured}
               className="bg-buy hover:bg-buy-hover text-buy-foreground font-semibold"
             >
               {submitting ? "Placing..." : "Buy XTZ"}
             </Button>
             <Button
               onClick={() => handlePlaceOrder("sell")}
-              disabled={!account || submitting}
+              disabled={!account || submitting || !isApiConfigured}
               className="bg-sell hover:bg-sell-hover text-sell-foreground font-semibold"
             >
               {submitting ? "Placing..." : "Sell XTZ"}
@@ -223,14 +303,14 @@ const OrderForm = () => {
           <div className="grid grid-cols-2 gap-3">
             <Button
               onClick={() => handlePlaceOrder("buy")}
-              disabled={!account || submitting}
+              disabled={!account || submitting || !isApiConfigured}
               className="bg-buy hover:bg-buy-hover text-buy-foreground font-semibold"
             >
               {submitting ? "Placing..." : "Buy XTZ"}
             </Button>
             <Button
               onClick={() => handlePlaceOrder("sell")}
-              disabled={!account || submitting}
+              disabled={!account || submitting || !isApiConfigured}
               className="bg-sell hover:bg-sell-hover text-sell-foreground font-semibold"
             >
               {submitting ? "Placing..." : "Sell XTZ"}
