@@ -1,11 +1,9 @@
-Avantages : 
-- Shared types between kernel and sequencer
-- Shared types between run and tests
-
 Prerequisites : 
+- Rust wasm target: 
 ```
 rustup target add wasm32-unknown-unknown
 ```
+- Octez binary in path
 
 Build kernel : 
 ```
