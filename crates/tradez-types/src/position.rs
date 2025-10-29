@@ -8,7 +8,9 @@ use crate::{address::Address, currencies::Currencies};
 pub type Price = u64; // microUSDC par XTZ (1e6)
 pub type Qty = u64; // microXTZ (1e6)
 
-#[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(
+    Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, Default, PartialEq, Eq, Clone, Copy,
+)]
 pub struct APIOrder {
     pub side: Side,
     pub size: Qty,
@@ -24,7 +26,7 @@ pub struct CancelOrder {
 #[derive(Debug, Serialize, Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq)]
 pub struct Faucet {
     pub amount: Qty,
-    pub currency: Currencies
+    pub currency: Currencies,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]

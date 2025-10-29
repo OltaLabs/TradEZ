@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::{RefPath, concat};
-use tradez_types::{address::Address, currencies::Currencies, error::TradezError, position::UserOrder};
+use tradez_types::{
+    address::Address, currencies::Currencies, error::TradezError, position::UserOrder,
+};
 
 #[derive(Debug)]
 pub struct Account {
@@ -11,7 +13,7 @@ pub struct Account {
     pub nonce: u64,
     pub balances: HashMap<Currencies, u64>,
     // TODO: Optimize, currently it's stored at two places
-    pub orders: HashMap<u64, UserOrder>
+    pub orders: HashMap<u64, UserOrder>,
 }
 
 impl Encodable for Account {

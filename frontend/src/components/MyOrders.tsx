@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTradezApi, RpcOrdersResult } from "@/hooks/useTradezApi";
 import { useWallet } from "@/hooks/useWallet";
 
-const REFRESH_INTERVAL_MS = 500;
+const REFRESH_INTERVAL_MS = 200;
 const DECIMALS = 6;
 const PAIR_LABEL = "XTZ/USDC";
 
@@ -239,10 +239,6 @@ const MyOrders = () => {
                   <div>
                     <span className="text-muted-foreground">Remaining:</span>{" "}
                     <span className="font-medium">{order.remaining} XTZ</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Nonce:</span>{" "}
-                    <span className="font-medium">{order.nonce}</span>
                   </div>
                 </div>
               </div>

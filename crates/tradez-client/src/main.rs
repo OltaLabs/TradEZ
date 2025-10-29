@@ -184,14 +184,17 @@ async fn main() {
                         "Requesting faucet of amount: {} for wallet: {}",
                         amount, wallet_cmd.name
                     );
-                    let faucet = Faucet { amount, currency: match currency {
-                        0 => tradez_types::currencies::Currencies::USDC,
-                        1 => tradez_types::currencies::Currencies::XTZ,
-                        _ => {
-                            println!("Invalid currency specified. Defaulting to USDC.");
-                            tradez_types::currencies::Currencies::USDC
-                        }
-                    } };
+                    let faucet = Faucet {
+                        amount,
+                        currency: match currency {
+                            0 => tradez_types::currencies::Currencies::USDC,
+                            1 => tradez_types::currencies::Currencies::XTZ,
+                            _ => {
+                                println!("Invalid currency specified. Defaulting to USDC.");
+                                tradez_types::currencies::Currencies::USDC
+                            }
+                        },
+                    };
                     let signature = wallet.sign_message(&faucet.rlp_bytes()).unwrap();
                     let result = TradezRpcClient::faucet(&client, faucet, signature)
                         .await
@@ -216,9 +219,7 @@ async fn main() {
             }
             GetInfosCommand::Orders { address } => {
                 println!("Fetching orders for address: {}", address);
-                let orders = TradezRpcClient::get_orders(&client, address)
-                    .await
-                    .unwrap();
+                let orders = TradezRpcClient::get_orders(&client, address).await.unwrap();
                 println!("Orders: {:?}", orders);
             }
         },

@@ -17,6 +17,32 @@ use crate::account::Account;
 
 pub mod account;
 
+const DECIMALS: u128 = 1_000_000;
+
+fn quote_value(qty: u64, price: u64) -> Option<u64> {
+    let product = (qty as u128).checked_mul(price as u128)?;
+    let value = product / DECIMALS;
+    if value > u64::MAX as u128 {
+        None
+    } else {
+        Some(value as u64)
+    }
+}
+
+fn trading_fee(amount: u64) -> u64 {
+    if amount == 0 {
+        0
+    } else {
+        let proportional_fee = amount / 1000;
+        proportional_fee.max(1)
+    }
+}
+
+fn amount_with_fee(amount: u64) -> Option<u64> {
+    let fee = trading_fee(amount);
+    amount.checked_add(fee)
+}
+
 //TODO: Fix all unwraps and verify all computations
 fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
     let mut orderbook = OrderBook::load(host).unwrap();
@@ -47,20 +73,45 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                         match order.side {
                             Side::Ask => {
                                 let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
-                                *balance = balance.checked_sub(order.size).unwrap();
-                                // Fees 0.1%
-                                let fee = std::cmp::min(1, order.size.checked_div(1000).unwrap());
-                                *balance = balance.checked_sub(fee).unwrap();
+                                let Some(total_xtz) = amount_with_fee(order.size) else {
+                                    host.write_debug(
+                                        "Failed to compute total XTZ with fee for ask order\n",
+                                    );
+                                    return;
+                                };
+                                if let Some(updated_balance) = (*balance).checked_sub(total_xtz) {
+                                    *balance = updated_balance;
+                                } else {
+                                    host.write_debug("Insufficient XTZ balance for ask order\n");
+                                    return;
+                                }
                             }
                             Side::Bid => {
                                 let balance = account.balances.entry(Currencies::USDC).or_insert(0);
-                                *balance = balance.checked_sub(order.size).unwrap();
-                                // Fees 0.1%
-                                let fee = std::cmp::min(1, order.size.checked_div(1000).unwrap());
-                                *balance = balance.checked_sub(fee).unwrap();
+                                let Some(required_usdc) = quote_value(order.size, order.price)
+                                else {
+                                    host.write_debug(
+                                        "Failed to compute notional value for bid order\n",
+                                    );
+                                    return;
+                                };
+                                let Some(total_usdc) = amount_with_fee(required_usdc) else {
+                                    host.write_debug(
+                                        "Failed to compute total USDC with fee for bid order\n",
+                                    );
+                                    return;
+                                };
+                                if let Some(updated_balance) = (*balance).checked_sub(total_usdc) {
+                                    *balance = updated_balance;
+                                } else {
+                                    host.write_debug("Insufficient USDC balance for bid order\n");
+                                    return;
+                                }
                             }
                         };
-                        account.orders.insert(orderbook.next_id, UserOrder::from(order));
+                        account
+                            .orders
+                            .insert(orderbook.next_id, UserOrder::from(order));
                         account.save(host).unwrap();
                         let mut events = vec![];
                         host.write_debug(&format!("Place order for address: {:?}\n", caller));
@@ -81,10 +132,9 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                                     maker_user,
                                     taker_id,
                                     taker_user,
-                                    price: _,
+                                    price,
                                     qty,
-                                } => 
-                                {
+                                } => {
                                     // Update balances for maker and taker
                                     let mut maker_account = Account::load(host, &maker_user)
                                         .unwrap()
@@ -92,45 +142,140 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                                     let mut taker_account = Account::load(host, &taker_user)
                                         .unwrap()
                                         .unwrap_or(Account::new(taker_user));
-                                    // Maker sold qty of XTZ, receives USDC
-                                    // TODO: Fix balance calculations
-                                    let maker_xtz_balance =
-                                        maker_account.balances.entry(Currencies::XTZ).or_insert(0);
-                                    *maker_xtz_balance = maker_xtz_balance.checked_sub(qty).unwrap();
-                                    let maker_usdc_balance =
-                                        maker_account.balances.entry(Currencies::USDC).or_insert(0);
-                                    *maker_usdc_balance = maker_usdc_balance
-                                        .checked_add(qty)
-                                        .unwrap();
-                                    // Taker bought qty of XTZ, pays USDC
-                                    let taker_xtz_balance =
-                                        taker_account.balances.entry(Currencies::XTZ).or_insert(0);
-                                    *taker_xtz_balance = taker_xtz_balance.checked_add(qty).unwrap();
-                                    let taker_usdc_balance =
-                                        taker_account.balances.entry(Currencies::USDC).or_insert(0);
-                                    *taker_usdc_balance = taker_usdc_balance
-                                        .checked_sub(qty).unwrap();
-                                    // Remove partially or fully filled orders from accounts
+                                    let Some(trade_value) = quote_value(qty, price) else {
+                                        host.write_debug(
+                                            "Failed to compute trade notional value\n",
+                                        );
+                                        continue;
+                                    };
+
+                                    let Some(maker_order_snapshot) =
+                                        maker_account.orders.get(&maker_id).cloned()
+                                    else {
+                                        host.write_debug(
+                                            "Maker order not found while processing trade\n",
+                                        );
+                                        continue;
+                                    };
+                                    let Some(taker_order_snapshot) =
+                                        taker_account.orders.get(&taker_id).cloned()
+                                    else {
+                                        host.write_debug(
+                                            "Taker order not found while processing trade\n",
+                                        );
+                                        continue;
+                                    };
+
+                                    let Some(maker_remaining) =
+                                        maker_order_snapshot.remaining.checked_sub(qty)
+                                    else {
+                                        host.write_debug(
+                                            "Trade quantity exceeds maker remaining\n",
+                                        );
+                                        continue;
+                                    };
+                                    let Some(taker_remaining) =
+                                        taker_order_snapshot.remaining.checked_sub(qty)
+                                    else {
+                                        host.write_debug(
+                                            "Trade quantity exceeds taker remaining\n",
+                                        );
+                                        continue;
+                                    };
+
                                     {
-                                        let maker_order = maker_account.orders.get_mut(&maker_id).unwrap();
-                                        maker_order.remaining = maker_order.remaining.checked_sub(qty).unwrap();
-                                        if maker_order.remaining == 0 {
-                                            maker_account.orders.remove(&maker_id);
+                                        if let Some(maker_order) =
+                                            maker_account.orders.get_mut(&maker_id)
+                                        {
+                                            maker_order.remaining = maker_remaining;
                                         }
                                     }
+                                    if maker_remaining == 0 {
+                                        maker_account.orders.remove(&maker_id);
+                                    }
                                     {
-                                        let taker_order = taker_account.orders.get_mut(&taker_id).unwrap();
-                                        taker_order.remaining = taker_order.remaining.checked_sub(qty).unwrap();
-                                        if taker_order.remaining == 0 {
-                                            taker_account.orders.remove(&taker_id);
+                                        if let Some(taker_order) =
+                                            taker_account.orders.get_mut(&taker_id)
+                                        {
+                                            taker_order.remaining = taker_remaining;
                                         }
                                     }
+                                    if taker_remaining == 0 {
+                                        taker_account.orders.remove(&taker_id);
+                                    }
+
+                                    // Apply maker side effects
+                                    match maker_order_snapshot.side {
+                                        Side::Ask => {
+                                            let maker_usdc_balance = maker_account
+                                                .balances
+                                                .entry(Currencies::USDC)
+                                                .or_insert(0);
+                                            *maker_usdc_balance = maker_usdc_balance
+                                                .checked_add(trade_value)
+                                                .unwrap();
+                                        }
+                                        Side::Bid => {
+                                            let maker_xtz_balance = maker_account
+                                                .balances
+                                                .entry(Currencies::XTZ)
+                                                .or_insert(0);
+                                            *maker_xtz_balance =
+                                                maker_xtz_balance.checked_add(qty).unwrap();
+                                        }
+                                    }
+
+                                    // Apply taker side effects
+                                    match taker_order_snapshot.side {
+                                        Side::Bid => {
+                                            let taker_xtz_balance = taker_account
+                                                .balances
+                                                .entry(Currencies::XTZ)
+                                                .or_insert(0);
+                                            *taker_xtz_balance =
+                                                taker_xtz_balance.checked_add(qty).unwrap();
+
+                                            if let Some(reserved_value) =
+                                                quote_value(qty, taker_order_snapshot.price)
+                                            {
+                                                if reserved_value >= trade_value {
+                                                    let refund = reserved_value - trade_value;
+                                                    if refund > 0 {
+                                                        let taker_usdc_balance = taker_account
+                                                            .balances
+                                                            .entry(Currencies::USDC)
+                                                            .or_insert(0);
+                                                        *taker_usdc_balance = taker_usdc_balance
+                                                            .checked_add(refund)
+                                                            .unwrap();
+                                                    }
+                                                } else {
+                                                    host.write_debug("Reserved value lower than trade value for taker bid\n");
+                                                }
+                                            } else {
+                                                host.write_debug("Failed to compute reserved value for taker bid\n");
+                                            }
+                                        }
+                                        Side::Ask => {
+                                            let taker_usdc_balance = taker_account
+                                                .balances
+                                                .entry(Currencies::USDC)
+                                                .or_insert(0);
+                                            *taker_usdc_balance = taker_usdc_balance
+                                                .checked_add(trade_value)
+                                                .unwrap();
+                                        }
+                                    }
+
                                     // Save updated accounts
                                     maker_account.save(host).unwrap();
                                     taker_account.save(host).unwrap();
                                 }
                                 Event::Done { id, user } => {
-                                    host.write_debug(&format!("Order done: ID={}, User={:?}\n", id, user));
+                                    host.write_debug(&format!(
+                                        "Order done: ID={}, User={:?}\n",
+                                        id, user
+                                    ));
                                     // Remove order from user's account
                                     let mut user_account = Account::load(host, &user)
                                         .unwrap()
@@ -154,20 +299,27 @@ fn handle_message(host: &mut impl Runtime, msg: impl AsRef<[u8]>) {
                             .unwrap()
                             .unwrap_or(Account::new(caller));
                         host.write_debug(&format!(
-                            "Account before cancelling order: {:?}\n", account
+                            "Account before cancelling order: {:?}\n",
+                            account
                         ));
                         if let Some(user_order) = account.orders.remove(&cancel_order.order_id) {
                             // Refund the remaining amount to the user's balance
                             match user_order.side {
                                 Side::Ask => {
-                                    let balance = account.balances.entry(Currencies::XTZ).or_insert(0);
+                                    let balance =
+                                        account.balances.entry(Currencies::XTZ).or_insert(0);
                                     *balance = balance.checked_add(user_order.remaining).unwrap();
                                 }
                                 Side::Bid => {
-                                    let balance = account.balances.entry(Currencies::USDC).or_insert(0);
-                                    *balance = balance.checked_add(
-                                        user_order.remaining.checked_mul(user_order.price).unwrap(),
-                                    ).unwrap();
+                                    let balance =
+                                        account.balances.entry(Currencies::USDC).or_insert(0);
+                                    if let Some(refund) =
+                                        quote_value(user_order.remaining, user_order.price)
+                                    {
+                                        *balance = balance.checked_add(refund).unwrap();
+                                    } else {
+                                        host.write_debug("Overflow while computing refund for cancelled bid order\n");
+                                    }
                                 }
                             }
                             account.save(host).unwrap();

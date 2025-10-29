@@ -9,7 +9,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
 import { useTradezApi } from "@/hooks/useTradezApi";
 
-const BALANCE_REFRESH_MS = 1000;
+const BALANCE_REFRESH_MS = 200;
 const DECIMALS = 6;
 
 const OrderForm = () => {
