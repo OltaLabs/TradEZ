@@ -1,3 +1,5 @@
+THIS IS A POC FOR NOW. CODE ISN'T FINAL AND WAS MADE TO ITERATE A FIRST VERSION FAST.
+
 Prerequisites : 
 - Rust wasm target: 
 ```
