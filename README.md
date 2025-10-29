@@ -23,7 +23,7 @@ cargo build --release && cd tradez-tests && cargo run --release
 ```
 
 TODO:
-- Fix nonces
+- Don't duplicate orders in book and accounts
 - Make RPC nodes
 - Stream trades that succeeded 
 - Fix buy/sell with faucet

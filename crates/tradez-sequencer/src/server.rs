@@ -147,12 +147,12 @@ impl TradezRpcServer for TradezRpcImpl {
         })?;
         let mut bids = Vec::new();
         for (price, levels) in orderbook.bids.iter().rev() {
-            let total_qty: Qty = levels.iter().map(|level| level.qty).sum();
+            let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
             bids.push((*price, total_qty));
         }
         let mut asks = Vec::new();
         for (price, levels) in orderbook.asks.iter() {
-            let total_qty: Qty = levels.iter().map(|level| level.qty).sum();
+            let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
             asks.push((*price, total_qty));
         }
         Ok((bids, asks))

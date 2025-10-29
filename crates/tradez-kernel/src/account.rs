@@ -7,7 +7,7 @@ use tradez_types::{
     address::Address, currencies::Currencies, error::TradezError, position::UserOrder,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Account {
     pub address: Address,
     pub nonce: u64,

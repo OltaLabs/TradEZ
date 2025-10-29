@@ -408,6 +408,21 @@ impl OrderBook {
         self.next_id += 1;
         id
     }
+
+    pub fn order_state(&self, side: Side, id: u64) -> Option<(Price, Qty)> {
+        let ladder = match side {
+            Side::Bid => &self.bids,
+            Side::Ask => &self.asks,
+        };
+        for queue in ladder.values() {
+            for order in queue {
+                if order.id == id {
+                    return Some((order.price, order.remaining));
+                }
+            }
+        }
+        None
+    }
 }
 
 /* === Démo & tests ======================================================= */

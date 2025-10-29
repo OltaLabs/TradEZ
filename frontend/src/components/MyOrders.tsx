@@ -90,7 +90,7 @@ const MyOrders = () => {
           setLoading(true);
         }
         const result = await getOrders(account);
-        setOrders(mapOrders(result));
+        setOrders(mapOrders(result).sort((a, b) => b.nonce - a.nonce));
         setError(null);
       } catch (err: any) {
         console.error("Failed to fetch orders:", err);
