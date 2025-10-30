@@ -5,7 +5,6 @@ pub struct SmartRollupInstallerConfig {
     pub verbose: bool,
 }
 
-// /Users/foucaultaurelien/tezos/smart-rollup-installer get-reveal-installer --upgrade-to evm_kernel.wasm --output /var/folders/91/p4s0fn8x4hg6gnhcgccc7wsr0000gn/T/tezt-57420/1/evm_kernel-installer.hex --preimages-dir /var/folders/91/p4s0fn8x4hg6gnhcgccc7wsr0000gn/T/tezt-57420/1/sc-rollup-node1/wasm_2_0_0 --display-root-hash --setup-file /var/folders/91/p4s0fn8x4hg6gnhcgccc7wsr0000gn/T/tezt-57420/1/config.yaml
 pub fn create_installer(
     kernel_path: &Path,
     preimages_folder: &Path,
