@@ -41,8 +41,8 @@ where
     let mut smart_rollup_node = tradez_octez::smart_rollup_node::SmartRollupNode::new(
         Path::new(octez_client.data_dir()),
         tradez_octez::smart_rollup_node::SmartRollupNodeConfig {
-            print_commands: true,
-            verbose: true,
+            print_commands: config.print_commands,
+            verbose: config.verbose,
         },
         format!("http://localhost:{}", node.rpc_port),
     );
@@ -54,8 +54,8 @@ where
             .join("tradez_kernel_installer.hex")
             .as_path(),
         tradez_octez::smart_rollup_installer::SmartRollupInstallerConfig {
-            print_commands: true,
-            verbose: true,
+            print_commands: config.print_commands,
+            verbose: config.verbose,
         },
     );
     octez_client.originate_smart_roll_up(
@@ -71,8 +71,8 @@ where
     octez_client.bake_l1_blocks(1);
     std::thread::sleep(std::time::Duration::from_secs(2));
     let sequencer = crate::sequencer::Sequencer::new(crate::sequencer::SequencerConfig {
-        print_commands: true,
-        verbose: true,
+        print_commands: config.print_commands,
+        verbose: config.verbose,
         smart_rollup_node_address: smart_rollup_node.rpc_addr(),
     });
     let smart_rollup_client =
@@ -80,8 +80,8 @@ where
     std::thread::sleep(std::time::Duration::from_secs(1));
     let tradez_client = crate::client::Client::new(
         crate::client::ClientConfig {
-            print_commands: true,
-            verbose: true,
+            print_commands: config.print_commands,
+            verbose: config.verbose,
         },
         sequencer.rpc_port,
     );
