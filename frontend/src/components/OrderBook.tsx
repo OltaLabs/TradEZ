@@ -226,7 +226,7 @@ const OrderBook = () => {
                     : bestBid || bestAsk || "—"}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {spread ? `Spread: ${spread}` : "Spread unavailable"}
+                  {spread ? `Spread: ${spread} USDC` : "Spread unavailable"}
                 </div>
               </div>
 

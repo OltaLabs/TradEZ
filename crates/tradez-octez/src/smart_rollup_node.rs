@@ -36,7 +36,7 @@ impl SmartRollupNode {
     }
 
     pub fn pre_images_path(&self) -> PathBuf {
-        // if they don't exists create it 
+        // if they don't exists create it
         let path = self.data_dir.path().join("wasm_2_0_0");
         std::fs::create_dir_all(&path).expect("Failed to create pre-images directory");
         path

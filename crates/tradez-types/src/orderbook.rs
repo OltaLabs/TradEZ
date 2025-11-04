@@ -409,15 +409,18 @@ impl OrderBook {
         id
     }
 
-    pub fn order_state(&self, side: Side, id: u64) -> Option<(Price, Qty)> {
-        let ladder = match side {
-            Side::Bid => &self.bids,
-            Side::Ask => &self.asks,
-        };
-        for queue in ladder.values() {
+    pub fn get_order(&self, id: u64) -> Option<Order> {
+        for queue in self.asks.values() {
             for order in queue {
                 if order.id == id {
-                    return Some((order.price, order.remaining));
+                    return Some(order.clone());
+                }
+            }
+        }
+        for queue in self.bids.values() {
+            for order in queue {
+                if order.id == id {
+                    return Some(order.clone());
                 }
             }
         }

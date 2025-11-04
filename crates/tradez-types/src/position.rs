@@ -49,7 +49,6 @@ pub struct UserOrder {
     pub qty: Qty,       // quantité initiale
     pub remaining: Qty, // quantité restante
     pub nonce: u64,
-    pub fee_remaining: u64,
 }
 
 impl From<APIOrder> for UserOrder {
@@ -61,7 +60,6 @@ impl From<APIOrder> for UserOrder {
             qty: api_order.size,
             remaining: api_order.size,
             nonce: api_order.nonce,
-            fee_remaining: 0,
         }
     }
 }

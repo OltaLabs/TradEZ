@@ -124,16 +124,31 @@ impl TradezRpcServer for TradezRpcImpl {
         let addr = Address::from_hex(&address).map_err(|e| {
             ErrorObject::owned::<()>(-32000, format!("Failed to decode address: {:?}", e), None)
         })?;
-        let account_result = {
+        let (account, orderbook) = {
             let mut host = self.host.lock().await;
-            Account::load(&mut *host, &addr)
-        };
-        let account = account_result
-            .map_err(|e| {
+            let account = Account::load(&mut *host, &addr).map_err(|e| {
                 ErrorObject::owned::<()>(-32000, format!("Failed to load account: {:?}", e), None)
-            })?
-            .unwrap_or_else(|| Account::new(addr));
-        let orders: Vec<(u64, UserOrder)> = account.orders.into_iter().collect();
+            })?;
+            let orderbook = OrderBook::load(&mut *host).map_err(|e| {
+                ErrorObject::owned::<()>(-32000, format!("Failed to load orderbook: {:?}", e), None)
+            })?;
+            (account.unwrap_or_else(|| Account::new(addr)), orderbook)
+        };
+
+        let mut orders: Vec<(u64, UserOrder)> = Vec::new();
+        for id in account.orders {
+            if let Some(order) = orderbook.get_order(id) {
+                let user_order = UserOrder {
+                    side: order.side,
+                    ord_type: order.ord_type,
+                    price: order.price,
+                    qty: order.qty,
+                    remaining: order.remaining,
+                    nonce: order.nonce,
+                };
+                orders.push((id, user_order));
+            }
+        }
         Ok(orders)
     }
 

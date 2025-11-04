@@ -1,11 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use rlp::{Decodable, Encodable};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::{RefPath, concat};
-use tradez_types::{
-    address::Address, currencies::Currencies, error::TradezError, position::UserOrder,
-};
+use tradez_types::{address::Address, currencies::Currencies, error::TradezError};
 
 #[derive(Debug, Clone)]
 pub struct Account {
@@ -13,7 +11,7 @@ pub struct Account {
     pub nonce: u64,
     pub balances: HashMap<Currencies, u64>,
     // TODO: Optimize, currently it's stored at two places
-    pub orders: HashMap<u64, UserOrder>,
+    pub orders: BTreeSet<u64>,
 }
 
 impl Encodable for Account {
@@ -31,10 +29,8 @@ impl Encodable for Account {
             s.append(balance);
         }
         s.begin_list(self.orders.len());
-        for (order_id, order) in &self.orders {
-            s.begin_list(2);
+        for order_id in &self.orders {
             s.append(order_id);
-            s.append(order);
         }
     }
 }
@@ -57,12 +53,10 @@ impl Decodable for Account {
             balances.insert(currency, balance);
         }
         let orders_rlp = rlp.at(3)?;
-        let mut orders = HashMap::new();
+        let mut orders = BTreeSet::new();
         for i in 0..orders_rlp.item_count()? {
-            let entry_rlp = orders_rlp.at(i)?;
-            let order_id: u64 = entry_rlp.val_at(0)?;
-            let order: UserOrder = entry_rlp.val_at(1)?;
-            orders.insert(order_id, order);
+            let order_id: u64 = orders_rlp.at(i)?.as_val()?;
+            orders.insert(order_id);
         }
         Ok(Account {
             address,
@@ -81,7 +75,7 @@ impl Account {
             address,
             nonce: 0,
             balances: HashMap::new(),
-            orders: HashMap::new(),
+            orders: BTreeSet::new(),
         }
     }
 
@@ -128,7 +122,7 @@ mod tests {
         let mut balances = HashMap::new();
         balances.insert(Currencies::USDC, 1000u64);
         balances.insert(Currencies::XTZ, 500u64);
-        let orders = HashMap::new();
+        let orders = BTreeSet::new();
         let address = Address::from([0u8; 20]);
         let account = Account {
             address: address.clone(),
