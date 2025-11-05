@@ -15,6 +15,13 @@ type OrderBookEntry = {
   priceRaw: bigint;
 };
 
+type HistoryEntry = {
+  time: string;
+  price: string;
+  size: string;
+  side: "Bid" | "Ask";
+};
+
 const formatDecimal = (value: bigint, fractionDigits: number) => {
   const formatted = ethers.formatUnits(value, DECIMALS);
   const numeric = Number.parseFloat(formatted);
@@ -28,9 +35,10 @@ const formatDecimal = (value: bigint, fractionDigits: number) => {
 };
 
 const OrderBook = () => {
-  const { getOrderbookState, isApiConfigured } = useTradezApi();
+  const { getOrderbookState, getHistory, isApiConfigured } = useTradezApi();
   const [asks, setAsks] = useState<OrderBookEntry[]>([]);
   const [bids, setBids] = useState<OrderBookEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bestBid, setBestBid] = useState<string | null>(null);
   const [bestAsk, setBestAsk] = useState<string | null>(null);
   const [spread, setSpread] = useState<string | null>(null);
@@ -42,6 +50,7 @@ const OrderBook = () => {
   const resetState = useCallback((message?: string) => {
     setAsks([]);
     setBids([]);
+    setHistory([]);
     setBestAsk(null);
     setBestBid(null);
     setSpread(null);
@@ -67,7 +76,30 @@ const OrderBook = () => {
     return entries;
   }, []);
 
-  const fetchOrderbook = useCallback(
+  const mapHistory = useCallback((entries: Array<[string, number, number, "Bid" | "Ask"]>) => {
+    const result: HistoryEntry[] = [];
+    for (const [timestamp, qty, price, side] of entries) {
+      const qtyBig = BigInt(Math.trunc(qty));
+      const priceBig = BigInt(Math.trunc(price));
+      let timeLabel = timestamp;
+      const ms = Number(timestamp);
+      if (Number.isFinite(ms)) {
+        const date = new Date(ms);
+        if (!Number.isNaN(date.getTime())) {
+          timeLabel = date.toLocaleTimeString(undefined, { hour12: false });
+        }
+      }
+      result.push({
+        time: timeLabel,
+        price: formatDecimal(priceBig, 4),
+        size: formatDecimal(qtyBig, 3),
+        side,
+      });
+    }
+    return result;
+  }, []);
+
+  const fetchData = useCallback(
     async (silent = false) => {
       if (!isApiConfigured || fetchingRef.current) {
         if (!isApiConfigured) {
@@ -80,11 +112,16 @@ const OrderBook = () => {
         if (!silent) {
           setLoading(true);
         }
-        const [rawBids, rawAsks] = await getOrderbookState();
+        const [[rawBids, rawAsks], rawHistory] = await Promise.all([
+          getOrderbookState(),
+          getHistory(),
+        ]);
         const mappedBids = mapLevels(rawBids);
         const mappedAsks = mapLevels(rawAsks);
+        const mappedHistory = mapHistory(rawHistory).slice(-200).reverse();
         setBids(mappedBids);
         setAsks(mappedAsks);
+        setHistory(mappedHistory);
 
         if (mappedBids.length > 0) {
           setBestBid(mappedBids[0].price);
@@ -116,7 +153,7 @@ const OrderBook = () => {
         }
       }
     },
-    [getOrderbookState, isApiConfigured, mapLevels, resetState]
+    [getHistory, getOrderbookState, isApiConfigured, mapHistory, mapLevels, resetState]
   );
 
   useEffect(() => {
@@ -129,9 +166,9 @@ const OrderBook = () => {
       return;
     }
 
-    fetchOrderbook().catch(() => undefined);
+    fetchData().catch(() => undefined);
     pollingRef.current = window.setInterval(() => {
-      fetchOrderbook(true).catch(() => undefined);
+      fetchData(true).catch(() => undefined);
     }, REFRESH_INTERVAL_MS);
 
     return () => {
@@ -140,7 +177,7 @@ const OrderBook = () => {
         pollingRef.current = null;
       }
     };
-  }, [fetchOrderbook, isApiConfigured, resetState]);
+  }, [fetchData, isApiConfigured, resetState]);
 
   const maxBidTotal = useMemo(
     () => bids.reduce((max, entry) => (entry.totalRaw > max ? entry.totalRaw : max), 0n),
@@ -161,7 +198,7 @@ const OrderBook = () => {
         );
       }
       return (
-        <div className="space-y-1">
+        <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
           {orders.map((order, idx) => {
             const ratio =
               maxTotal > 0n ? Number(order.totalRaw * 100n / maxTotal) : 0;
@@ -193,22 +230,46 @@ const OrderBook = () => {
     []
   );
 
+  const renderHistory = useCallback(() => {
+    if (!history.length) {
+      return (
+        <div className="px-2 py-3 text-sm text-muted-foreground text-center border border-border/30 rounded">
+          No trades yet
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
+        {history.map((entry, idx) => (
+          <div
+            key={`${entry.time}-${idx}`}
+            className="grid grid-cols-3 gap-2 text-sm py-1 px-2 rounded relative"
+          >
+            <span className="text-muted-foreground">{entry.time}</span>
+            <span className={`text-right font-medium ${entry.side === "Bid" ? "text-buy" : "text-sell"}`}>
+              {entry.price}
+            </span>
+            <span className="text-right">{entry.size}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }, [history]);
+
   return (
     <Card className="h-full bg-orderbook-bg border-border/50 p-4">
-      <Tabs defaultValue="both" className="w-full">
-        <TabsList className="w-full grid grid-cols-3 mb-4">
-          <TabsTrigger value="both">Book</TabsTrigger>
-          <TabsTrigger value="bids">Bids</TabsTrigger>
-          <TabsTrigger value="asks">Asks</TabsTrigger>
+      <Tabs defaultValue="book" className="w-full">
+        <TabsList className="w-full grid grid-cols-2 mb-4">
+          <TabsTrigger value="book">Book</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mb-2 px-2">
-          <span>Price (USDC)</span>
-          <span className="text-right">Size (XTZ)</span>
-          <span className="text-right">Total</span>
-        </div>
-
-        <TabsContent value="both" className="space-y-4 mt-0">
+        <TabsContent value="book" className="space-y-4 mt-0">
+          <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground px-2">
+            <span>Price (USDC)</span>
+            <span className="text-right">Size (XTZ)</span>
+            <span className="text-right">Total</span>
+          </div>
           {error ? (
             <div className="px-2 py-3 text-sm text-red-500 border border-red-500/30 rounded bg-red-500/5">
               {error}
@@ -235,23 +296,18 @@ const OrderBook = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="bids" className="mt-0">
+        <TabsContent value="history" className="space-y-3 mt-0">
+          <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground px-2">
+            <span>Time</span>
+            <span className="text-right">Price (USDC)</span>
+            <span className="text-right">Size (XTZ)</span>
+          </div>
           {error ? (
             <div className="px-2 py-3 text-sm text-red-500 border border-red-500/30 rounded bg-red-500/5">
               {error}
             </div>
           ) : (
-            renderOrderBookSide(bids, true, maxBidTotal)
-          )}
-        </TabsContent>
-
-        <TabsContent value="asks" className="mt-0">
-          {error ? (
-            <div className="px-2 py-3 text-sm text-red-500 border border-red-500/30 rounded bg-red-500/5">
-              {error}
-            </div>
-          ) : (
-            renderOrderBookSide(asks, false, maxAskTotal)
+            renderHistory()
           )}
         </TabsContent>
       </Tabs>

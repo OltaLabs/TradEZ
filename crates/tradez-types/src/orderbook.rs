@@ -39,7 +39,12 @@ pub enum Event {
 impl Encodable for Event {
     fn rlp_append(&self, s: &mut rlp::RlpStream) {
         match self {
-            Event::Placed { id, side, price, qty } => {
+            Event::Placed {
+                id,
+                side,
+                price,
+                qty,
+            } => {
                 s.begin_list(5);
                 s.append(&0u8); // tag
                 s.append(id);
@@ -54,7 +59,7 @@ impl Encodable for Event {
                 taker_user,
                 price,
                 qty,
-                origin_side
+                origin_side,
             } => {
                 s.begin_list(7);
                 s.append(&1u8); // tag
@@ -160,10 +165,10 @@ impl Decodable for Event {
                     taker_user,
                     price,
                     qty,
-                    origin_side
+                    origin_side,
                 })
             }
-           2 => {
+            2 => {
                 let user: Address = it
                     .next()
                     .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
@@ -192,7 +197,6 @@ impl Decodable for Event {
         }
     }
 }
-
 
 pub type SideLadder = BTreeMap<Price, VecDeque<Order>>;
 

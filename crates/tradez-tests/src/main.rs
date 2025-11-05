@@ -22,14 +22,14 @@ async fn main() {
                     _smart_rollup_client,
                     _tradez_sequencer,
                     tradez_client| {
-                tradez_client.faucet_usdc(1000000000);
-                tradez_client.faucet_xtz(1000000000);
-                let mut rand = rand::thread_rng();
-                let mut price_values = Vec::new();
-                for _ in 0..14 {
-                    let price: u64 = rand.gen_range(900000..=1100000);
-                    price_values.push(price);
-                }
+            tradez_client.faucet_usdc(1000000000);
+            tradez_client.faucet_xtz(1000000000);
+            let mut rand = rand::thread_rng();
+            let mut price_values = Vec::new();
+            for _ in 0..14 {
+                let price: u64 = rand.gen_range(900000..=1100000);
+                price_values.push(price);
+            }
             loop {
                 octez_client.bake_l1_blocks(1);
                 for _ in 0..5 {

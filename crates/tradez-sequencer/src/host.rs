@@ -9,7 +9,10 @@ use tezos_smart_rollup_host::{
     metadata::RollupMetadata,
     runtime::{Runtime, RuntimeError},
 };
-use tradez_types::{orderbook::Event, position::{Price, Qty, Side}};
+use tradez_types::{
+    orderbook::Event,
+    position::{Price, Qty, Side},
+};
 
 const TABLE: TableDefinition<&str, Vec<u8>> = TableDefinition::new("my_data");
 const PATH_HISTORY: &str = "tradez/history/";
@@ -74,7 +77,15 @@ impl Runtime for SequencerHost {
     fn write_output(&mut self, msg: &[u8]) -> Result<(), RuntimeError> {
         let event = Event::decode(&rlp::Rlp::new(msg)).map_err(|_| RuntimeError::DecodingError)?;
         match event {
-            Event::Trade { maker_id: _, maker_user: _, taker_id: _, taker_user: _, price, qty, origin_side } => {
+            Event::Trade {
+                maker_id: _,
+                maker_user: _,
+                taker_id: _,
+                taker_user: _,
+                price,
+                qty,
+                origin_side,
+            } => {
                 let timestamp = chrono::Utc::now().timestamp_millis() as u128;
                 println!(
                     "[KERNEL Trade Event] timestamp: {}, price: {}, qty: {}, side: {:?}",
@@ -92,12 +103,14 @@ impl Runtime for SequencerHost {
                         .append(&price)
                         .append(&qty)
                         .append(&(origin_side as u8));
-                    table.insert(path.as_str(), rlp_stream.out().to_vec()).unwrap();
+                    table
+                        .insert(path.as_str(), rlp_stream.out().to_vec())
+                        .unwrap();
                 }
                 write_txn.commit().unwrap();
                 Ok(())
             }
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 

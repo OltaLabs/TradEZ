@@ -24,6 +24,8 @@ export type RpcFaucet = {
 export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;
 export type RpcOrderbookLevels = Array<[RpcPrice, RpcQty]>;
 export type RpcOrderbookState = [RpcOrderbookLevels, RpcOrderbookLevels];
+export type RpcTradeHistoryEntry = [string, RpcQty, RpcPrice, "Bid" | "Ask"];
+export type RpcHistoryResult = RpcTradeHistoryEntry[];
 export type RpcUserOrder = {
   side: "Bid" | "Ask";
   ord_type: "Limit" | "Market";
@@ -179,6 +181,10 @@ export const useTradezApi = () => {
     return callRpc<RpcOrderbookState>("get_orderbook_state", []);
   }, [callRpc]);
 
+  const getHistory = useCallback(async () => {
+    return callRpc<RpcHistoryResult>("get_history", []);
+  }, [callRpc]);
+
   return {
     apiUrl: apiBaseUrl,
     isApiConfigured: Boolean(apiBaseUrl),
@@ -188,5 +194,6 @@ export const useTradezApi = () => {
     getBalances,
     getOrders,
     getOrderbookState,
+    getHistory,
   };
 };
