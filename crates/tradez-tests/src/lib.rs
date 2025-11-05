@@ -39,6 +39,9 @@ mod tests {
                 let order_book = OrderBook::decode(&Rlp::new(&bytes)).unwrap();
                 assert_eq!(order_book.best_ask(), Some(1000));
                 let orderbook_state = tradez_client.get_orderbook_state();
+                let history = tradez_client.get_history();
+                println!("Orderbook state: {}", orderbook_state);
+                println!("History: {}", history);
                 drop(orderbook_state);
             },
         )
@@ -59,14 +62,13 @@ mod tests {
                         smart_rollup_client,
                         _tradez_sequencer,
                         tradez_client| {
+                tradez_client.faucet_usdc(100);
+                tradez_client.faucet_xtz(100);
+                octez_client.bake_l1_blocks(1);
                 tradez_client.buy(10, 1000);
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                octez_client.bake_l1_blocks(2);
-                std::thread::sleep(std::time::Duration::from_secs(2));
+                octez_client.bake_l1_blocks(1);
                 tradez_client.sell(5, 900);
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                octez_client.bake_l1_blocks(2);
-                std::thread::sleep(std::time::Duration::from_secs(2));
+                octez_client.bake_l1_blocks(4);
                 let bytes = smart_rollup_client
                     .get_value(ORDER_BOOK_STR_PATH)
                     .await
@@ -74,6 +76,8 @@ mod tests {
                     .unwrap();
                 let order_book = OrderBook::decode(&Rlp::new(&bytes)).unwrap();
                 assert_eq!(order_book.price_quantity_at(1000), 5);
+                let history = tradez_client.get_history();
+                println!("History: {}", history);
             },
         )
         .await

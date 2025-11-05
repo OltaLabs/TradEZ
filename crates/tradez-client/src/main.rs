@@ -110,6 +110,8 @@ enum GetInfosCommand {
         #[arg(short, long)]
         address: String,
     },
+    /// Get the trade history
+    History {},
 }
 
 #[tokio::main]
@@ -221,6 +223,11 @@ async fn main() {
                 println!("Fetching orders for address: {}", address);
                 let orders = TradezRpcClient::get_orders(&client, address).await.unwrap();
                 println!("Orders: {:?}", orders);
+            }
+            GetInfosCommand::History {} => {
+                println!("Fetching trade history...");
+                let history = TradezRpcClient::get_history(&client).await.unwrap();
+                println!("History: {:?}", history);
             }
         },
     }

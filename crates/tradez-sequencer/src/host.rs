@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use redb::{Database, ReadableDatabase, TableDefinition};
+use rlp::Decodable;
 use tezos_smart_rollup::{inbox::InboxMessage, michelson::MichelsonUnit};
 use tezos_smart_rollup_host::{
     dal_parameters::RollupDalParameters,
@@ -8,8 +9,10 @@ use tezos_smart_rollup_host::{
     metadata::RollupMetadata,
     runtime::{Runtime, RuntimeError},
 };
+use tradez_types::{orderbook::Event, position::{Price, Qty, Side}};
 
 const TABLE: TableDefinition<&str, Vec<u8>> = TableDefinition::new("my_data");
+const PATH_HISTORY: &str = "tradez/history/";
 
 pub struct SequencerHost {
     pub inputs: VecDeque<Vec<u8>>,
@@ -30,6 +33,29 @@ impl SequencerHost {
             self.inputs.push_back(input);
         }
     }
+
+    pub fn read_history(&self) -> Vec<(u128, Qty, Price, Side)> {
+        let mut history = Vec::new();
+        let read_txn = self.db.begin_read().unwrap();
+        let table = read_txn.open_table(TABLE).unwrap();
+        let prefix = PATH_HISTORY;
+        let mut iter = table.range(prefix..).unwrap();
+        while let Some(Ok((_, value))) = iter.next() {
+            let rlp_data = value.value();
+            let rlp = rlp::Rlp::new(&rlp_data);
+            let timestamp: u128 = rlp.val_at(0).unwrap();
+            let price: Price = rlp.val_at(1).unwrap();
+            let qty: Qty = rlp.val_at(2).unwrap();
+            let side_u8: u8 = rlp.val_at(3).unwrap();
+            let side = match side_u8 {
+                0 => Side::Bid,
+                1 => Side::Ask,
+                _ => continue, // Skip invalid entries
+            };
+            history.push((timestamp, qty, price, side));
+        }
+        history
+    }
 }
 
 impl Runtime for SequencerHost {
@@ -45,8 +71,34 @@ impl Runtime for SequencerHost {
             .unwrap_or(Ok(None))
     }
 
-    fn write_output(&mut self, _msg: &[u8]) -> Result<(), RuntimeError> {
-        unimplemented!()
+    fn write_output(&mut self, msg: &[u8]) -> Result<(), RuntimeError> {
+        let event = Event::decode(&rlp::Rlp::new(msg)).map_err(|_| RuntimeError::DecodingError)?;
+        match event {
+            Event::Trade { maker_id: _, maker_user: _, taker_id: _, taker_user: _, price, qty, origin_side } => {
+                let timestamp = chrono::Utc::now().timestamp_millis() as u128;
+                println!(
+                    "[KERNEL Trade Event] timestamp: {}, price: {}, qty: {}, side: {:?}",
+                    timestamp, price, qty, origin_side
+                );
+                // Append to history in the db
+                let write_txn = self.db.begin_write().unwrap();
+                {
+                    let mut table = write_txn.open_table(TABLE).unwrap();
+                    let path = format!("{}_{}", PATH_HISTORY, timestamp);
+                    let mut rlp_stream = rlp::RlpStream::new();
+                    rlp_stream
+                        .begin_list(4)
+                        .append(&timestamp)
+                        .append(&price)
+                        .append(&qty)
+                        .append(&(origin_side as u8));
+                    table.insert(path.as_str(), rlp_stream.out().to_vec()).unwrap();
+                }
+                write_txn.commit().unwrap();
+                Ok(())
+            }
+            _ => Ok(())
+        }
     }
 
     fn write_debug(&self, msg: &str) {

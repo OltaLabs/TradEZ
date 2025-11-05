@@ -24,6 +24,7 @@ pub enum Event {
         taker_user: Address,
         price: Price,
         qty: Qty,
+        origin_side: Side,
     },
     Done {
         user: Address,
@@ -34,6 +35,164 @@ pub enum Event {
         reason: &'static str,
     },
 }
+
+impl Encodable for Event {
+    fn rlp_append(&self, s: &mut rlp::RlpStream) {
+        match self {
+            Event::Placed { id, side, price, qty } => {
+                s.begin_list(5);
+                s.append(&0u8); // tag
+                s.append(id);
+                s.append(&(*side as u8));
+                s.append(price);
+                s.append(qty);
+            }
+            Event::Trade {
+                maker_id,
+                maker_user,
+                taker_id,
+                taker_user,
+                price,
+                qty,
+                origin_side
+            } => {
+                s.begin_list(7);
+                s.append(&1u8); // tag
+                s.append(maker_id);
+                s.append(maker_user);
+                s.append(taker_id);
+                s.append(taker_user);
+                s.append(price);
+                s.append(qty);
+                s.append(&(*origin_side as u8));
+            }
+            Event::Done { user, id } => {
+                s.begin_list(3);
+                s.append(&2u8); // tag
+                s.append(user);
+                s.append(id);
+            }
+            Event::Cancelled { id, reason } => {
+                s.begin_list(3);
+                s.append(&3u8); // tag
+                s.append(id);
+                s.append(reason);
+            }
+        }
+    }
+}
+
+impl Decodable for Event {
+    fn decode(rlp: &rlp::Rlp) -> Result<Self, rlp::DecoderError> {
+        let mut it = rlp.iter();
+        let tag: u8 = it
+            .next()
+            .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+            .as_val()?;
+        match tag {
+            0 => {
+                let id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let side_u8: u8 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let side = match side_u8 {
+                    0 => Side::Bid,
+                    1 => Side::Ask,
+                    _ => return Err(rlp::DecoderError::Custom("Invalid side value")),
+                };
+                let price: Price = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let qty: Qty = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                Ok(Event::Placed {
+                    id,
+                    side,
+                    price,
+                    qty,
+                })
+            }
+            1 => {
+                let maker_id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let maker_user: Address = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let taker_id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let taker_user: Address = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let price: Price = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let qty: Qty = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let origin_side_u8: u8 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let origin_side = match origin_side_u8 {
+                    0 => Side::Bid,
+                    1 => Side::Ask,
+                    _ => return Err(rlp::DecoderError::Custom("Invalid side value")),
+                };
+                Ok(Event::Trade {
+                    maker_id,
+                    maker_user,
+                    taker_id,
+                    taker_user,
+                    price,
+                    qty,
+                    origin_side
+                })
+            }
+           2 => {
+                let user: Address = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                Ok(Event::Done { user, id })
+            }
+            3 => {
+                let id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let reason: String = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                Ok(Event::Cancelled {
+                    id,
+                    reason: Box::leak(reason.into_boxed_str()),
+                })
+            }
+            _ => Err(rlp::DecoderError::Custom("Invalid event tag")),
+        }
+    }
+}
+
 
 pub type SideLadder = BTreeMap<Price, VecDeque<Order>>;
 
@@ -338,6 +497,7 @@ impl OrderBook {
                     taker_user: taker.user,
                     price: best_ask_price,
                     qty: exec_qty,
+                    origin_side: taker.side,
                 });
 
                 if maker.remaining > 0 {
@@ -385,6 +545,7 @@ impl OrderBook {
                     taker_user: taker.user,
                     price: best_bid_price,
                     qty: exec_qty,
+                    origin_side: taker.side,
                 });
 
                 if maker.remaining > 0 {
@@ -514,5 +675,44 @@ mod tests {
         };
         let ob2 = OrderBook::decode(&rlp::Rlp::new(&bytes)).unwrap();
         compare_orderbooks(&ob, &ob2);
+    }
+
+    #[test]
+    fn event_serialization() {
+        let events = vec![
+            Event::Placed {
+                id: 1,
+                side: Side::Bid,
+                price: 3_500_000,
+                qty: 1_000_000,
+            },
+            Event::Trade {
+                maker_id: 1,
+                maker_user: uid(1),
+                taker_id: 2,
+                taker_user: uid(2),
+                price: 3_500_000,
+                qty: 500_000,
+                origin_side: Side::Bid,
+            },
+            Event::Done {
+                user: uid(1),
+                id: 1,
+            },
+            Event::Cancelled {
+                id: 2,
+                reason: "by_user",
+            },
+        ];
+
+        for event in events {
+            let bytes = {
+                let mut stream = rlp::RlpStream::new();
+                event.rlp_append(&mut stream);
+                stream.out().to_vec()
+            };
+            let decoded_event = Event::decode(&rlp::Rlp::new(&bytes)).unwrap();
+            assert_eq!(event, decoded_event);
+        }
     }
 }

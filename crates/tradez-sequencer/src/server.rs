@@ -14,7 +14,7 @@ use tradez_types::{
     api::TradezRpcServer,
     currencies::Currencies,
     orderbook::OrderBook,
-    position::{APIOrder, CancelOrder, Faucet, Price, Qty, UserOrder},
+    position::{APIOrder, CancelOrder, Faucet, Price, Qty, Side, UserOrder},
 };
 
 use crate::host::SequencerHost;
@@ -171,6 +171,10 @@ impl TradezRpcServer for TradezRpcImpl {
             asks.push((*price, total_qty));
         }
         Ok((bids, asks))
+    }
+
+    async fn get_history(&self) -> RpcResult<Vec<(u128, Qty, Price, Side)>> {
+        Ok(self.host.lock().await.read_history())
     }
 }
 

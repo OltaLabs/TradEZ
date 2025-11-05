@@ -2,7 +2,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::{
     currencies::Currencies,
-    position::{APIOrder, CancelOrder, Faucet, Price, Qty, UserOrder},
+    position::{APIOrder, CancelOrder, Faucet, Price, Qty, Side, UserOrder},
 };
 
 #[rpc(client, server)]
@@ -24,4 +24,7 @@ pub trait TradezRpc {
 
     #[method(name = "get_orderbook_state")]
     async fn get_orderbook_state(&self) -> RpcResult<(Vec<(Price, Qty)>, Vec<(Price, Qty)>)>;
+
+    #[method(name = "get_history")]
+    async fn get_history(&self) -> RpcResult<Vec<(u128, Qty, Price, Side)>>;
 }

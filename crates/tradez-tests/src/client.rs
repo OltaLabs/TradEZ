@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::process::Command;
 
 use tempfile::TempDir;
@@ -216,19 +217,28 @@ impl Client {
             .arg(&self.rpc_url)
             .arg("get")
             .arg("orderbook-state");
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
         if self.config.print_commands {
             println!("> {:?}", command);
         }
         let output = command
             .output()
             .expect("Failed to execute client get orderbook state command");
+        String::from_utf8_lossy(&output.stdout).to_string()
+    }
+
+    pub fn get_history(&self) -> String {
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
+            .arg("--url")
+            .arg(&self.rpc_url)
+            .arg("get")
+            .arg("history");
+        if self.config.print_commands {
+            println!("> {:?}", command);
+        }
+        let output = command
+            .output()
+            .expect("Failed to execute client get history command");
         String::from_utf8_lossy(&output.stdout).to_string()
     }
 }
