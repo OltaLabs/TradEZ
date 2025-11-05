@@ -109,13 +109,10 @@ impl L1Node {
                 println!("> {:?}", command);
             }
             let mut child = command.spawn().expect("Failed to start L1 node");
-            loop {
-                match rx.recv() {
-                    Ok(_) | Err(std::sync::mpsc::RecvError) => {
-                        // Stop the node
-                        child.kill().expect("Failed to kill L1 node process");
-                        break;
-                    }
+            match rx.recv() {
+                Ok(_) | Err(std::sync::mpsc::RecvError) => {
+                    // Stop the node
+                    child.kill().expect("Failed to kill L1 node process");
                 }
             }
         });

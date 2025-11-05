@@ -305,7 +305,7 @@ fn process_place_order(
     let mut taker_done = false;
 
     for event in events {
-        host.write_output(&event.rlp_bytes().to_vec()).unwrap();
+        host.write_output(&event.rlp_bytes()).unwrap();
         match event {
             Event::Placed { .. } => {}
             Event::Trade {

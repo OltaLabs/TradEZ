@@ -212,8 +212,8 @@ impl Client {
         for _ in 0..count {
             std::thread::sleep(std::time::Duration::from_millis(500));
             if self.config.verbose {
-                command.stdout(std::process::Stdio::piped());
-                command.stderr(std::process::Stdio::piped());
+                command.stdout(std::process::Stdio::inherit());
+                command.stderr(std::process::Stdio::inherit());
             } else {
                 command.stdout(std::process::Stdio::piped());
                 command.stderr(std::process::Stdio::piped());
@@ -231,9 +231,6 @@ impl Client {
 }
 
 pub fn builtin_bootstrap_accounts(path: &path::Path) -> Vec<(String, String, String, u64)> {
-    let accounts = serde_json::from_slice(
-        &std::fs::read(path).expect("error reading built-in bootstrap accounts"),
-    )
-    .expect("error parsing built-in bootstrap accounts");
-    accounts
+    serde_json::from_slice(&std::fs::read(path).expect("error reading built-in bootstrap accounts"))
+        .expect("error parsing built-in bootstrap accounts")
 }

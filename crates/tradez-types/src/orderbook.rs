@@ -380,10 +380,7 @@ impl OrderBook {
             };
             book.entry(price).or_default().push_back(taker);
         } else {
-            out.push(Event::Done {
-                user: user.clone(),
-                id,
-            });
+            out.push(Event::Done { user, id });
         }
         id
     }
@@ -424,10 +421,7 @@ impl OrderBook {
                 reason: "unfilled_market",
             });
         } else {
-            out.push(Event::Done {
-                user: user.clone(),
-                id,
-            });
+            out.push(Event::Done { user, id });
         }
         id
     }
@@ -509,7 +503,7 @@ impl OrderBook {
                     break;
                 } else {
                     out.push(Event::Done {
-                        user: maker.user.clone(),
+                        user: maker.user,
                         id: maker.id,
                     });
                 }
@@ -557,7 +551,7 @@ impl OrderBook {
                     break;
                 } else {
                     out.push(Event::Done {
-                        user: maker.user.clone(),
+                        user: maker.user,
                         id: maker.id,
                     });
                 }

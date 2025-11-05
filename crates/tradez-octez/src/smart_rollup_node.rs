@@ -45,7 +45,7 @@ impl SmartRollupNode {
     pub fn data_path(&self) -> &Path {
         // if they don't exists create it
         let path = self.data_dir.path();
-        std::fs::create_dir_all(&path).expect("Failed to create data directory");
+        std::fs::create_dir_all(path).expect("Failed to create data directory");
         path
     }
 
