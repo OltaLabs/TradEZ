@@ -10,6 +10,7 @@ use tezos_smart_rollup_host::{
     runtime::{Runtime, RuntimeError},
 };
 use tradez_types::{
+    address::Address,
     orderbook::Event,
     position::{Price, Qty, Side},
 };
@@ -20,6 +21,7 @@ const PATH_HISTORY: &str = "tradez/history/";
 pub struct SequencerHost {
     pub inputs: VecDeque<Vec<u8>>,
     pub db: Database,
+    pub trade_to_notify: Vec<(Address, Address, u128, Qty, Price, Side)>,
 }
 
 impl SequencerHost {
@@ -28,6 +30,7 @@ impl SequencerHost {
         Self {
             db,
             inputs: VecDeque::new(),
+            trade_to_notify: Vec::new(),
         }
     }
 
@@ -79,9 +82,9 @@ impl Runtime for SequencerHost {
         match event {
             Event::Trade {
                 maker_id: _,
-                maker_user: _,
+                maker_user,
                 taker_id: _,
-                taker_user: _,
+                taker_user,
                 price,
                 qty,
                 origin_side,
@@ -91,6 +94,14 @@ impl Runtime for SequencerHost {
                     "[KERNEL Trade Event] timestamp: {}, price: {}, qty: {}, side: {:?}",
                     timestamp, price, qty, origin_side
                 );
+                self.trade_to_notify.push((
+                    maker_user,
+                    taker_user,
+                    timestamp,
+                    qty,
+                    price,
+                    origin_side,
+                ));
                 // Append to history in the db
                 let write_txn = self.db.begin_write().unwrap();
                 {

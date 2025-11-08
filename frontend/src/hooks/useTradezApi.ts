@@ -24,8 +24,14 @@ export type RpcFaucet = {
 export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;
 export type RpcOrderbookLevels = Array<[RpcPrice, RpcQty]>;
 export type RpcOrderbookState = [RpcOrderbookLevels, RpcOrderbookLevels];
-export type RpcTradeHistoryEntry = [string, RpcQty, RpcPrice, "Bid" | "Ask"];
-export type RpcHistoryResult = RpcTradeHistoryEntry[];
+export type RpcTradeHistoryEntry = [
+  string,
+  string,
+  number,
+  RpcQty,
+  RpcPrice,
+  "Bid" | "Ask"
+];
 export type RpcUserOrder = {
   side: "Bid" | "Ask";
   ord_type: "Limit" | "Market";
@@ -93,6 +99,19 @@ export const useTradezApi = () => {
     () => trimTrailingSlash(import.meta.env.VITE_TRADEZ_API_URL as string | undefined),
     []
   );
+  const wsBaseUrl = useMemo(() => {
+    if (!apiBaseUrl) {
+      return null;
+    }
+    try {
+      const url = new URL(apiBaseUrl);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      return url.toString();
+    } catch {
+      console.error("Invalid API URL; websocket subscriptions disabled.");
+      return null;
+    }
+  }, [apiBaseUrl]);
 
   const callRpc = useCallback(
     async <T>(method: string, params: unknown[]) => {
@@ -181,9 +200,70 @@ export const useTradezApi = () => {
     return callRpc<RpcOrderbookState>("get_orderbook_state", []);
   }, [callRpc]);
 
-  const getHistory = useCallback(async () => {
-    return callRpc<RpcHistoryResult>("get_history", []);
-  }, [callRpc]);
+  const subscribeJsonRpc = useCallback(
+    (method: string, onMessage: (payload: any) => void) => {
+      if (!wsBaseUrl) {
+        throw new Error("Set VITE_TRADEZ_API_URL to enable backend subscriptions.");
+      }
+      const socket = new WebSocket(wsBaseUrl);
+      const requestId = Date.now();
+
+      socket.addEventListener("open", () => {
+        socket.send(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: requestId,
+            method,
+            params: [],
+          })
+        );
+      });
+
+      socket.addEventListener("message", (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          onMessage(payload);
+        } catch (error) {
+          console.error("Failed to parse websocket payload:", error);
+        }
+      });
+
+      socket.addEventListener("error", (event) => {
+        console.error("Websocket subscription error:", event);
+      });
+
+      return () => {
+        socket.close();
+      };
+    },
+    [wsBaseUrl]
+  );
+
+  const subscribeOrderbookState = useCallback(
+    (onMessage: (state: RpcOrderbookState) => void) =>
+      subscribeJsonRpc("subscribeOrderBookState", (payload) => {
+        if (
+          payload?.method === "subscribeOrderBookState" &&
+          payload?.params?.result
+        ) {
+          onMessage(payload.params.result as RpcOrderbookState);
+        }
+      }),
+    [subscribeJsonRpc]
+  );
+
+  const subscribeHistory = useCallback(
+    (onMessage: (entry: RpcTradeHistoryEntry) => void) =>
+      subscribeJsonRpc("subscribeHistory", (payload) => {
+        if (
+          payload?.method === "subscribeHistory" &&
+          payload?.params?.result
+        ) {
+          onMessage(payload.params.result as RpcTradeHistoryEntry);
+        }
+      }),
+    [subscribeJsonRpc]
+  );
 
   return {
     apiUrl: apiBaseUrl,
@@ -194,6 +274,7 @@ export const useTradezApi = () => {
     getBalances,
     getOrders,
     getOrderbookState,
-    getHistory,
+    subscribeOrderbookState,
+    subscribeHistory,
   };
 };

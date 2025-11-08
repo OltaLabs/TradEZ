@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use alloy_primitives::hex::FromHex;
 use hyper::Method;
-use jsonrpsee::{core::RpcResult, server::ServerBuilder, types::ErrorObject};
+use jsonrpsee::{
+    PendingSubscriptionSink, SubscriptionSink,
+    core::{RpcResult, SubscriptionResult},
+    server::ServerBuilder,
+    types::ErrorObject,
+};
 use rlp::Encodable;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -22,6 +27,7 @@ use crate::host::SequencerHost;
 pub struct TradezRpcImpl {
     pub smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient,
     pub host: Arc<Mutex<SequencerHost>>,
+    pub subscribers: Arc<Mutex<Vec<SubscriptionSink>>>,
 }
 
 #[async_trait::async_trait]
@@ -41,6 +47,41 @@ impl TradezRpcServer for TradezRpcImpl {
             host.add_inputs(inputs.clone());
             println!("Executing order in native kernel...");
             kernel_loop(&mut *host);
+            let orderbook = OrderBook::load(&mut *host).unwrap();
+            let mut bids = Vec::new();
+            for (price, levels) in orderbook.bids.iter().rev() {
+                let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
+                bids.push((*price, total_qty));
+            }
+            let mut asks = Vec::new();
+            for (price, levels) in orderbook.asks.iter() {
+                let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
+                asks.push((*price, total_qty));
+            }
+            let mut subscribers = self.subscribers.lock().await;
+            subscribers.retain(|subscriber| !subscriber.is_closed());
+            for subscriber in subscribers.iter() {
+                match subscriber.method_name() {
+                    "subscribeHistory" => {
+                        for trade in &std::mem::take(&mut host.trade_to_notify) {
+                            subscriber
+                                .send(serde_json::value::to_raw_value(trade).unwrap())
+                                .await
+                                .unwrap();
+                        }
+                    }
+                    "subscribeOrderBookState" => {
+                        subscriber
+                            .send(
+                                serde_json::value::to_raw_value(&(bids.clone(), asks.clone()))
+                                    .unwrap(),
+                            )
+                            .await
+                            .unwrap();
+                    }
+                    _ => {}
+                }
+            }
         }
         if let Err(e) = self
             .smart_rollup_node_client
@@ -176,6 +217,21 @@ impl TradezRpcServer for TradezRpcImpl {
     async fn get_history(&self) -> RpcResult<Vec<(u128, Qty, Price, Side)>> {
         Ok(self.host.lock().await.read_history())
     }
+
+    async fn subscribe_order_book_state(
+        &self,
+        pending: PendingSubscriptionSink,
+    ) -> SubscriptionResult {
+        let sink = pending.accept().await?;
+        self.subscribers.lock().await.push(sink);
+        Ok(())
+    }
+
+    async fn subscribe_history(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+        let sink = pending.accept().await?;
+        self.subscribers.lock().await.push(sink);
+        Ok(())
+    }
 }
 
 pub async fn launch_server(
@@ -190,6 +246,7 @@ pub async fn launch_server(
             &smart_rollup_addr,
         ),
         host: Arc::new(Mutex::new(SequencerHost::new(data_dir))),
+        subscribers: Arc::new(Mutex::new(Vec::new())),
     };
 
     let cors = CorsLayer::new()

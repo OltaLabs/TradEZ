@@ -1,6 +1,10 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+    core::{RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+};
 
 use crate::{
+    address::Address,
     currencies::Currencies,
     position::{APIOrder, CancelOrder, Faucet, Price, Qty, Side, UserOrder},
 };
@@ -27,4 +31,10 @@ pub trait TradezRpc {
 
     #[method(name = "get_history")]
     async fn get_history(&self) -> RpcResult<Vec<(u128, Qty, Price, Side)>>;
+
+    #[subscription(name = "subscribeOrderBookState", item = (Vec<(Price, Qty)>, Vec<(Price, Qty)>))]
+    async fn subscribe_order_book_state(&self) -> SubscriptionResult;
+
+    #[subscription(name = "subscribeHistory", item = (Address, Address, u128, Qty, Price, Side))]
+    async fn subscribe_history(&self) -> SubscriptionResult;
 }

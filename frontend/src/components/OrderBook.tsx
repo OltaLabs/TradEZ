@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTradezApi } from "@/hooks/useTradezApi";
 
-const REFRESH_INTERVAL_MS = 100;
 const DECIMALS = 6;
 
 type OrderBookEntry = {
@@ -35,7 +34,7 @@ const formatDecimal = (value: bigint, fractionDigits: number) => {
 };
 
 const OrderBook = () => {
-  const { getOrderbookState, getHistory, isApiConfigured } = useTradezApi();
+  const { subscribeHistory, subscribeOrderbookState, isApiConfigured } = useTradezApi();
   const [asks, setAsks] = useState<OrderBookEntry[]>([]);
   const [bids, setBids] = useState<OrderBookEntry[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -99,29 +98,44 @@ const OrderBook = () => {
     return result;
   }, []);
 
-  const fetchData = useCallback(
-    async (silent = false) => {
-      if (!isApiConfigured || fetchingRef.current) {
-        if (!isApiConfigured) {
-          resetState("Backend unavailable");
-        }
-        return;
+  useEffect(() => {
+    if (!isApiConfigured) {
+      setHistory([]);
+      return;
+    }
+
+    let unsubscribeHistory: (() => void) | null = null;
+    try {
+      unsubscribeHistory = subscribeHistory((entry) => {
+        setHistory((prev) => {
+          const next = [mapHistory([entry])[0], ...prev];
+          return next.slice(0, 200);
+        });
+      });
+    } catch (err: any) {
+      console.error("Failed to subscribe to trade history:", err);
+    }
+
+    return () => {
+      if (unsubscribeHistory) {
+        unsubscribeHistory();
       }
-      fetchingRef.current = true;
-      try {
-        if (!silent) {
-          setLoading(true);
-        }
-        const [[rawBids, rawAsks], rawHistory] = await Promise.all([
-          getOrderbookState(),
-          getHistory(),
-        ]);
+    };
+  }, [isApiConfigured, mapHistory, subscribeHistory]);
+
+  useEffect(() => {
+    if (!isApiConfigured) {
+      resetState("Backend unavailable");
+      return;
+    }
+    setLoading(true);
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = subscribeOrderbookState(([rawBids, rawAsks]) => {
         const mappedBids = mapLevels(rawBids);
         const mappedAsks = mapLevels(rawAsks);
-        const mappedHistory = mapHistory(rawHistory).slice(-200).reverse();
         setBids(mappedBids);
         setAsks(mappedAsks);
-        setHistory(mappedHistory);
 
         if (mappedBids.length > 0) {
           setBestBid(mappedBids[0].price);
@@ -143,41 +157,20 @@ const OrderBook = () => {
           setSpread(null);
         }
         setError(null);
-      } catch (err: any) {
-        console.error("Failed to fetch orderbook:", err);
-        setError(err?.message ?? "Unable to load orderbook");
-      } finally {
-        fetchingRef.current = false;
-        if (!silent) {
-          setLoading(false);
-        }
-      }
-    },
-    [getHistory, getOrderbookState, isApiConfigured, mapHistory, mapLevels, resetState]
-  );
-
-  useEffect(() => {
-    if (!isApiConfigured) {
-      resetState("Backend unavailable");
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      return;
+        setLoading(false);
+      });
+    } catch (err: any) {
+      console.error("Failed to subscribe to orderbook state:", err);
+      setError(err?.message ?? "Unable to subscribe to orderbook state");
+      setLoading(false);
     }
 
-    fetchData().catch(() => undefined);
-    pollingRef.current = window.setInterval(() => {
-      fetchData(true).catch(() => undefined);
-    }, REFRESH_INTERVAL_MS);
-
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
-  }, [fetchData, isApiConfigured, resetState]);
+  }, [isApiConfigured, mapLevels, resetState, subscribeOrderbookState]);
 
   const maxBidTotal = useMemo(
     () => bids.reduce((max, entry) => (entry.totalRaw > max ? entry.totalRaw : max), 0n),
