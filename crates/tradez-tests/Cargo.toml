@@ -10,6 +10,5 @@ tradez-octez.workspace = true
 tradez-types.workspace = true
 tokio.workspace = true
 tempfile.workspace = true
-openport.workspace = true
 rlp.workspace = true
 rand.workspace = true

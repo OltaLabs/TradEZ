@@ -1,8 +1,10 @@
-use openport::pick_unused_port;
 use std::{process::Command, thread};
 use tempfile::TempDir;
 
-use crate::logging::{run_command, spawn_command};
+use crate::{
+    logging::{run_command, spawn_command},
+    ports::pick_unused_port,
+};
 
 pub struct L1Node {
     tx: std::sync::mpsc::Sender<()>,
@@ -19,11 +21,9 @@ impl L1Node {
     pub fn launch(config: L1NodeConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<()>();
         let net_port =
-            pick_unused_port(15000..16000).expect("Failed to pick unused port for L1 node net");
-        let metrics_port = pick_unused_port((net_port + 1)..17000)
-            .expect("Failed to pick unused port for L1 node metrics");
-        let rpc_port = pick_unused_port((metrics_port + 1)..18000)
-            .expect("Failed to pick unused port for L1 node rpc");
+            pick_unused_port();
+        let metrics_port = pick_unused_port();
+        let rpc_port = pick_unused_port();
         let node_data_dir = TempDir::with_suffix("tradez_l1_node")
             .expect("Failed to create temp dir for L1 node data");
         let thread = thread::spawn(move || {

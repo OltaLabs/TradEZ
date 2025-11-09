@@ -1,3 +1,4 @@
+use std::net::TcpListener;
 use std::process::{Command, Stdio};
 use std::thread::JoinHandle;
 
@@ -8,6 +9,14 @@ pub struct SequencerConfig {
     pub print_commands: bool,
     pub verbose: bool,
     pub smart_rollup_node_address: String,
+}
+
+fn pick_unused_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("Failed to bind to an ephemeral port")
+        .local_addr()
+        .expect("Failed to read local address")
+        .port()
 }
 
 pub struct Sequencer {
@@ -21,7 +30,7 @@ pub struct Sequencer {
 
 impl Sequencer {
     pub fn new(config: SequencerConfig) -> Self {
-        let rpc_port = openport::pick_unused_port(19000..20000).expect("Failed to find free port");
+        let rpc_port = pick_unused_port();
         let data_dir = TempDir::with_suffix("tradez_sequencer")
             .expect("Failed to create temp dir for sequencer data");
         let mut command = Command::new("../../target/release/tradez-sequencer");

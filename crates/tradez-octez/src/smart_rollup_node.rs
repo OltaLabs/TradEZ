@@ -4,7 +4,7 @@ use std::thread::JoinHandle;
 use serde::Deserialize;
 use tempfile::TempDir;
 
-use crate::{error::OctezError, logging::spawn_command};
+use crate::{error::OctezError, logging::spawn_command, ports::pick_unused_port};
 
 pub struct SmartRollupNode {
     base_dir_path: PathBuf,
@@ -26,8 +26,7 @@ impl SmartRollupNode {
     pub fn new(base_dir_path: &Path, config: SmartRollupNodeConfig, l1_rpc_addr: String) -> Self {
         let data_dir = TempDir::with_suffix("tradez_smart_rollup_node")
             .expect("Failed to create temp dir for smart rollup node data");
-        let rpc_port = openport::pick_unused_port(15500..16000)
-            .expect("Failed to pick unused port for smart rollup node rpc");
+        let rpc_port = pick_unused_port();
         SmartRollupNode {
             base_dir_path: base_dir_path.to_path_buf(),
             config,
@@ -56,8 +55,7 @@ impl SmartRollupNode {
 
     pub fn start(&mut self, operator: &str) {
         let mut command = std::process::Command::new("octez-smart-rollup-node");
-        let metrics_port = openport::pick_unused_port((self.rpc_port + 1)..17000)
-            .expect("Failed to pick unused port for smart rollup node metrics");
+        let metrics_port = pick_unused_port();
         command
             .arg("--endpoint")
             .arg(&self.l1_rpc_addr)

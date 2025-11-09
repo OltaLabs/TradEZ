@@ -31,7 +31,7 @@ async fn main() {
                 price_values.push(price);
             }
             // Is multiplied by 2
-            let number_of_orders = 500;
+            let number_of_orders = 100;
             loop {
                 octez_client.bake_l1_blocks(1);
                 for _ in 0..number_of_orders {
