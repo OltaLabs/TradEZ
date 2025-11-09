@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
+use std::thread::JoinHandle;
 
 use serde::Deserialize;
 use tempfile::TempDir;
 
-use crate::error::OctezError;
+use crate::{error::OctezError, logging::spawn_command};
 
 pub struct SmartRollupNode {
     base_dir_path: PathBuf,
@@ -12,6 +13,8 @@ pub struct SmartRollupNode {
     data_dir: TempDir,
     l1_rpc_addr: String,
     rpc_port: u16,
+    stdout_handle: Option<JoinHandle<()>>,
+    stderr_handle: Option<JoinHandle<()>>,
 }
 
 pub struct SmartRollupNodeConfig {
@@ -32,6 +35,8 @@ impl SmartRollupNode {
             child: None,
             data_dir,
             l1_rpc_addr,
+            stdout_handle: None,
+            stderr_handle: None,
         }
     }
 
@@ -76,31 +81,29 @@ impl SmartRollupNode {
             .arg("--log-kernel-debug")
             .arg("--log-kernel-debug-file")
             .arg("tradez_kernel.debug");
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        let child = command
-            .spawn()
-            .expect("Failed to spawn octez-smart-rollup-node run command");
+        let (child, stdout_handle, stderr_handle) = spawn_command(
+            &mut command,
+            "smart-rollup-node",
+            self.config.verbose,
+            self.config.print_commands,
+            "Failed to spawn octez-smart-rollup-node run command",
+        );
         self.child = Some(child);
+        self.stdout_handle = stdout_handle;
+        self.stderr_handle = stderr_handle;
     }
 
     pub fn stop(&mut self) {
         if let Some(child) = &mut self.child {
-            child
-                .kill()
-                .expect("Failed to kill smart rollup node process");
-            child
-                .wait()
-                .expect("Failed to wait for smart rollup node process to exit");
+            let _ = child.kill();
+            let _ = child.wait();
             self.child = None;
+        }
+        if let Some(handle) = self.stdout_handle.take() {
+            let _ = handle.join();
+        }
+        if let Some(handle) = self.stderr_handle.take() {
+            let _ = handle.join();
         }
     }
 

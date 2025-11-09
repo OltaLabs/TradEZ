@@ -84,8 +84,6 @@ impl TradezRpcServer for TradezRpcImpl {
             .await
         {
             println!("Failed to inject inbox message: {:?}", e);
-        } else {
-            println!("Successfully injected inbox message.");
         }
         Ok(String::from("Order received"))
     }
@@ -99,7 +97,6 @@ impl TradezRpcServer for TradezRpcImpl {
         {
             let mut host = self.host.lock().await;
             host.add_inputs(inputs.clone());
-            println!("Executing cancel order in native kernel...");
             kernel_loop(&mut *host);
         }
         if let Err(e) = self
@@ -108,8 +105,6 @@ impl TradezRpcServer for TradezRpcImpl {
             .await
         {
             println!("Failed to inject inbox message: {:?}", e);
-        } else {
-            println!("Successfully injected inbox message.");
         }
         Ok(String::from("Cancel request received"))
     }
@@ -123,7 +118,6 @@ impl TradezRpcServer for TradezRpcImpl {
         {
             let mut host = self.host.lock().await;
             host.add_inputs(inputs.clone());
-            println!("Executing faucet in native kernel...");
             kernel_loop(&mut *host);
         }
         if let Err(e) = self
@@ -132,8 +126,6 @@ impl TradezRpcServer for TradezRpcImpl {
             .await
         {
             println!("Failed to inject inbox message: {:?}", e);
-        } else {
-            println!("Successfully injected inbox message.");
         }
         Ok(String::from("Faucet request received"))
     }

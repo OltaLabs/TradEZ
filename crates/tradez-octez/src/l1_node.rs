@@ -1,9 +1,8 @@
 use openport::pick_unused_port;
-use std::{
-    process::{Command, Stdio},
-    thread,
-};
+use std::{process::Command, thread};
 use tempfile::TempDir;
+
+use crate::logging::{run_command, spawn_command};
 
 pub struct L1Node {
     tx: std::sync::mpsc::Sender<()>,
@@ -35,21 +34,14 @@ impl L1Node {
                 .arg("--data-dir")
                 .arg(node_data_dir.path())
                 .arg("0");
-            if config.verbose {
-                command.stdout(Stdio::inherit());
-                command.stderr(Stdio::inherit());
-            } else {
-                command.stdout(Stdio::piped());
-                command.stderr(Stdio::piped());
-            }
-            if config.print_commands {
-                println!("> {:?}", command);
-            }
-            command
-                .spawn()
-                .expect("Failed to generate L1 node identity")
-                .wait()
-                .expect("Failed to wait for octez-node identity generate command");
+            run_command(
+                &mut command,
+                "octez-node",
+                config.verbose,
+                config.print_commands,
+                "Failed to generate L1 node identity",
+                "Failed to wait for octez-node identity generate command",
+            );
             // Initialize the node configuration
             let mut command = Command::new("octez-node");
             command
@@ -67,22 +59,14 @@ impl L1Node {
                 .arg("--expected-pow")
                 .arg("0");
 
-            if config.verbose {
-                command.stdout(Stdio::inherit());
-                command.stderr(Stdio::inherit());
-            } else {
-                command.stdout(Stdio::piped());
-                command.stderr(Stdio::piped());
-            }
-
-            if config.print_commands {
-                println!("> {:?}", command);
-            }
-            command
-                .spawn()
-                .expect("Failed to initialize L1 node configuration")
-                .wait()
-                .expect("Failed to wait for octez-node config init command");
+            run_command(
+                &mut command,
+                "octez-node",
+                config.verbose,
+                config.print_commands,
+                "Failed to initialize L1 node configuration",
+                "Failed to wait for octez-node config init command",
+            );
             let mut command = Command::new("octez-node");
             command
                 .arg("run")
@@ -98,22 +82,25 @@ impl L1Node {
                 .arg("500")
                 .arg("--allow-all-rpc")
                 .arg(format!("127.0.0.1:{}", rpc_port));
-            if config.verbose {
-                command.stdout(Stdio::inherit());
-                command.stderr(Stdio::inherit());
-            } else {
-                command.stdout(Stdio::piped());
-                command.stderr(Stdio::piped());
-            }
-            if config.print_commands {
-                println!("> {:?}", command);
-            }
-            let mut child = command.spawn().expect("Failed to start L1 node");
+            let (mut child, stdout_handle, stderr_handle) = spawn_command(
+                &mut command,
+                "octez-node",
+                config.verbose,
+                config.print_commands,
+                "Failed to start L1 node",
+            );
             match rx.recv() {
                 Ok(_) | Err(std::sync::mpsc::RecvError) => {
                     // Stop the node
-                    child.kill().expect("Failed to kill L1 node process");
+                    let _ = child.kill();
                 }
+            }
+            let _ = child.wait();
+            if let Some(handle) = stdout_handle {
+                let _ = handle.join();
+            }
+            if let Some(handle) = stderr_handle {
+                let _ = handle.join();
             }
         });
 

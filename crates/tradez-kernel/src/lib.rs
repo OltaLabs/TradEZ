@@ -237,7 +237,7 @@ fn process_place_order(
     signature: &[u8],
 ) -> Result<(), ()> {
     host.write_debug(&format!(
-        "Received Order: side={}, size={}, price={}\n",
+        "Received Order: side={}, size={}, price={}",
         order.side, order.size, order.price
     ));
     let signature = Signature::from_raw(signature).map_err(|_| ())?;

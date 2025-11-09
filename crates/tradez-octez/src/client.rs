@@ -1,4 +1,7 @@
 use std::path;
+use std::process::Command;
+
+use crate::logging::{print_prefixed_lines, run_command};
 
 pub struct Client {
     data_dir: String,
@@ -40,8 +43,19 @@ impl Client {
         &self.data_dir
     }
 
+    fn run_octez_command(&self, command: &mut Command, spawn_err: &str, wait_err: &str) {
+        run_command(
+            command,
+            "octez-client",
+            self.config.verbose,
+            self.config.print_commands,
+            spawn_err,
+            wait_err,
+        );
+    }
+
     pub fn import_account(&self, alias: &str, sk: &str) {
-        let mut command = std::process::Command::new("octez-client");
+        let mut command = Command::new("octez-client");
         command
             .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
             .arg("--base-dir")
@@ -53,21 +67,11 @@ impl Client {
             .arg("key")
             .arg(alias)
             .arg(sk);
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn octez-client import secret key command")
-            .wait()
-            .expect("Failed to wait for octez-client import secret key command");
+        self.run_octez_command(
+            &mut command,
+            "Failed to spawn octez-client import secret key command",
+            "Failed to wait for octez-client import secret key command",
+        );
     }
 
     pub fn import_accounts_from_file(&self, path: &path::Path) {
@@ -78,7 +82,7 @@ impl Client {
     }
 
     pub fn activate_protocol(&self, file: &path::Path, protocol_hash: &str) {
-        let mut command = std::process::Command::new("octez-client");
+        let mut command = Command::new("octez-client");
         command
             .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
             .arg("--base-dir")
@@ -99,25 +103,15 @@ impl Client {
             .arg("and")
             .arg("parameters")
             .arg(file);
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn octez-client activate protocol command")
-            .wait()
-            .expect("Failed to wait for octez-client activate protocol command");
+        self.run_octez_command(
+            &mut command,
+            "Failed to spawn octez-client activate protocol command",
+            "Failed to wait for octez-client activate protocol command",
+        );
     }
 
     pub fn get_balance(&self, alias: &str) -> u64 {
-        let mut command = std::process::Command::new("octez-client");
+        let mut command = Command::new("octez-client");
         command
             .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
             .arg("--base-dir")
@@ -128,19 +122,18 @@ impl Client {
             .arg("balance")
             .arg("for")
             .arg(alias);
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
+        command.stdout(std::process::Stdio::piped());
+        command.stderr(std::process::Stdio::piped());
         if self.config.print_commands {
             println!("> {:?}", command);
         }
         let output = command
             .output()
             .expect("Failed to spawn octez-client get balance command");
+        if self.config.verbose {
+            print_prefixed_lines(&output.stdout, "octez-client", false);
+            print_prefixed_lines(&output.stderr, "octez-client", true);
+        }
         let balance_str = String::from_utf8_lossy(&output.stdout);
         balance_str
             .split_whitespace()
@@ -156,7 +149,7 @@ impl Client {
         from_alias: &str,
         kernel_file: &path::Path,
     ) {
-        let mut command = std::process::Command::new("octez-client");
+        let mut command = Command::new("octez-client");
         command
             .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
             .arg("--base-dir")
@@ -182,50 +175,32 @@ impl Client {
             .arg(format!("file:{}", kernel_file.to_str().unwrap()))
             .arg("--burn-cap")
             .arg("3");
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn octez-client originate smart rollup command");
+        self.run_octez_command(
+            &mut command,
+            "Failed to spawn octez-client originate smart rollup command",
+            "Failed to wait for octez-client originate smart rollup command",
+        );
         self.bake_l1_blocks(1);
     }
 
     pub fn bake_l1_blocks(&self, count: u32) {
-        let mut command = std::process::Command::new("octez-client");
-        command
-            .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
-            .arg("--base-dir")
-            .arg(&self.data_dir)
-            .arg("--endpoint")
-            .arg(&self.rpc_addr)
-            .arg("bake")
-            .arg("for")
-            .arg("--minimal-timestamp");
         for _ in 0..count {
             std::thread::sleep(std::time::Duration::from_millis(500));
-            if self.config.verbose {
-                command.stdout(std::process::Stdio::inherit());
-                command.stderr(std::process::Stdio::inherit());
-            } else {
-                command.stdout(std::process::Stdio::piped());
-                command.stderr(std::process::Stdio::piped());
-            }
-            if self.config.print_commands {
-                println!("> {:?}", command);
-            }
+            let mut command = Command::new("octez-client");
             command
-                .spawn()
-                .expect("Failed to spawn octez-client bake command")
-                .wait()
-                .expect("Failed to wait for octez-client bake command");
+                .env("TEZOS_CLIENT_UNSAFE_DISABLE_DISCLAIMER", "Y")
+                .arg("--base-dir")
+                .arg(&self.data_dir)
+                .arg("--endpoint")
+                .arg(&self.rpc_addr)
+                .arg("bake")
+                .arg("for")
+                .arg("--minimal-timestamp");
+            self.run_octez_command(
+                &mut command,
+                "Failed to spawn octez-client bake command",
+                "Failed to wait for octez-client bake command",
+            );
         }
     }
 }

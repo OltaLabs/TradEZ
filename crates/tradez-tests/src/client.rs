@@ -1,7 +1,8 @@
 #![allow(dead_code)]
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
+use tradez_octez::logging::{print_prefixed_lines, run_command};
 
 pub struct Client {
     rpc_url: String,
@@ -15,20 +16,33 @@ pub struct ClientConfig {
 }
 
 impl Client {
+    fn configure_stdio(config: &ClientConfig, command: &mut Command) {
+        if config.verbose {
+            command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        } else {
+            command.stdout(Stdio::null()).stderr(Stdio::null());
+        }
+    }
+
     pub fn new(config: ClientConfig, rpc_port: u16) -> Self {
         let wallet_dir = TempDir::with_suffix("tradez_client").unwrap();
         let rpc_url = format!("http://localhost:{}", rpc_port);
-        Command::new("../../target/release/tradez-client")
+        let mut command = Command::new("../../target/release/tradez-client");
+        command
             .arg("--url")
             .arg(&rpc_url)
             .arg("wallet")
             .arg("--dirpath")
             .arg(wallet_dir.path())
-            .arg("create")
-            .spawn()
-            .expect("Failed to initialize client")
-            .wait()
-            .expect("Failed to wait for client init command");
+            .arg("create");
+        run_command(
+                &mut command,
+                "tradez-client",
+                config.verbose,
+                config.print_commands,
+                "Failed to spawn tradez-client command",
+                "Failed to wait for tradez-client command",
+            );
         Client {
             rpc_url,
             wallet_dir,
@@ -51,21 +65,14 @@ impl Client {
             .arg(size.to_string())
             .arg("--price")
             .arg(price.to_string());
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn client open-position command")
-            .wait()
-            .expect("Failed to wait for client open-position command");
+        run_command(
+            &mut command,
+            "tradez-client",
+            self.config.verbose,
+            self.config.print_commands,
+            "Failed to spawn client open-position command",
+            "Failed to wait for client open-position command",
+        );
     }
 
     pub fn sell(&self, size: u64, price: u64) {
@@ -83,21 +90,14 @@ impl Client {
             .arg(size.to_string())
             .arg("--price")
             .arg(price.to_string());
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn client open-position command")
-            .wait()
-            .expect("Failed to wait for client open-position command");
+        run_command(
+            &mut command,
+            "tradez-client",
+            self.config.verbose,
+            self.config.print_commands,
+            "Failed to spawn client open-position command",
+            "Failed to wait for client open-position command",
+        );
     }
 
     pub fn faucet_usdc(&self, amount: u64) {
@@ -113,21 +113,14 @@ impl Client {
             .arg(amount.to_string())
             .arg("--currency")
             .arg("0");
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn client faucet command")
-            .wait()
-            .expect("Failed to wait for client faucet command");
+        run_command(
+            &mut command,
+            "tradez-client",
+            self.config.verbose,
+            self.config.print_commands,
+            "Failed to spawn client faucet command",
+            "Failed to wait for client faucet command",
+        );
     }
 
     pub fn faucet_xtz(&self, amount: u64) {
@@ -143,21 +136,14 @@ impl Client {
             .arg(amount.to_string())
             .arg("--currency")
             .arg("1");
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
-        if self.config.print_commands {
-            println!("> {:?}", command);
-        }
-        command
-            .spawn()
-            .expect("Failed to spawn client faucet command")
-            .wait()
-            .expect("Failed to wait for client faucet command");
+        run_command(
+            &mut command,
+            "tradez-client",
+            self.config.verbose,
+            self.config.print_commands,
+            "Failed to spawn client faucet command",
+            "Failed to wait for client faucet command",
+        );
     }
 
     pub fn get_balances(&self, address: String) -> String {
@@ -169,19 +155,16 @@ impl Client {
             .arg("balances")
             .arg("--address")
             .arg(address);
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
         if self.config.print_commands {
             println!("> {:?}", command);
         }
         let output = command
             .output()
             .expect("Failed to execute client get balances command");
+        if self.config.verbose {
+            print_prefixed_lines(&output.stdout, "tradez-client", false);
+            print_prefixed_lines(&output.stderr, "tradez-client", true);
+        }
         String::from_utf8_lossy(&output.stdout).to_string()
     }
 
@@ -194,19 +177,16 @@ impl Client {
             .arg("orders")
             .arg("--address")
             .arg(address);
-        if self.config.verbose {
-            command.stdout(std::process::Stdio::inherit());
-            command.stderr(std::process::Stdio::inherit());
-        } else {
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-        }
         if self.config.print_commands {
             println!("> {:?}", command);
         }
         let output = command
             .output()
             .expect("Failed to execute client get orders command");
+        if self.config.verbose {
+            print_prefixed_lines(&output.stdout, "tradez-client", false);
+            print_prefixed_lines(&output.stderr, "tradez-client", true);
+        }
         String::from_utf8_lossy(&output.stdout).to_string()
     }
 
@@ -223,6 +203,10 @@ impl Client {
         let output = command
             .output()
             .expect("Failed to execute client get orderbook state command");
+        if self.config.verbose {
+            print_prefixed_lines(&output.stdout, "tradez-client", false);
+            print_prefixed_lines(&output.stderr, "tradez-client", true);
+        }
         String::from_utf8_lossy(&output.stdout).to_string()
     }
 
@@ -239,6 +223,10 @@ impl Client {
         let output = command
             .output()
             .expect("Failed to execute client get history command");
+        if self.config.verbose {
+            print_prefixed_lines(&output.stdout, "tradez-client", false);
+            print_prefixed_lines(&output.stderr, "tradez-client", true);
+        }
         String::from_utf8_lossy(&output.stdout).to_string()
     }
 }

@@ -1,5 +1,7 @@
 use std::{path::Path, process::Command};
 
+use crate::logging::run_command;
+
 pub struct SmartRollupInstallerConfig {
     pub print_commands: bool,
     pub verbose: bool,
@@ -21,19 +23,12 @@ pub fn create_installer(
         .arg("--preimages-dir")
         .arg(preimages_folder)
         .arg("--display-root-hash");
-    if config.verbose {
-        command.stdout(std::process::Stdio::inherit());
-        command.stderr(std::process::Stdio::inherit());
-    } else {
-        command.stdout(std::process::Stdio::piped());
-        command.stderr(std::process::Stdio::piped());
-    }
-    if config.print_commands {
-        println!("> {:?}", command);
-    }
-    command
-        .spawn()
-        .expect("Failed to spawn cargo build command")
-        .wait()
-        .expect("Failed to wait for cargo build command");
+    run_command(
+        &mut command,
+        "smart-rollup-installer",
+        config.verbose,
+        config.print_commands,
+        "Failed to spawn smart-rollup-installer command",
+        "Failed to wait for smart-rollup-installer command",
+    );
 }

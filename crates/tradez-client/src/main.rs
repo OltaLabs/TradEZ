@@ -157,10 +157,9 @@ async fn main() {
                         price,
                     };
                     let signature = wallet.sign_message(&api_order.rlp_bytes()).unwrap();
-                    let result = TradezRpcClient::send_order(&client, api_order, signature)
+                    let _result = TradezRpcClient::send_order(&client, api_order, signature)
                         .await
                         .unwrap();
-                    println!("Result from server: {}", result);
                 }
                 WalletCommand::ClosePosition { position_id } => {
                     println!(
@@ -171,11 +170,9 @@ async fn main() {
                         order_id: position_id,
                     };
                     let signature = wallet.sign_message(&cancel_order.rlp_bytes()).unwrap();
-                    let result = TradezRpcClient::cancel_order(&client, cancel_order, signature)
+                    let _result = TradezRpcClient::cancel_order(&client, cancel_order, signature)
                         .await
                         .unwrap();
-                    println!("Result from server: {}", result);
-                    // Implement close position logic here
                 }
                 WalletCommand::Faucet { amount, currency } => {
                     println!(
@@ -194,10 +191,9 @@ async fn main() {
                         },
                     };
                     let signature = wallet.sign_message(&faucet.rlp_bytes()).unwrap();
-                    let result = TradezRpcClient::faucet(&client, faucet, signature)
+                    let _result = TradezRpcClient::faucet(&client, faucet, signature)
                         .await
                         .unwrap();
-                    println!("Result from server: {}", result);
                 }
             }
         }
