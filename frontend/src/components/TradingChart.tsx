@@ -1,11 +1,85 @@
+import { useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, TrendingDown } from "lucide-react";
 
+declare global {
+  interface Window {
+    TradingView?: any;
+  }
+}
+
+const loadTradingViewScript = (() => {
+  let loadPromise: Promise<void> | null = null;
+  return () => {
+    if (loadPromise) {
+      return loadPromise;
+    }
+    loadPromise = new Promise<void>((resolve, reject) => {
+      const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://s3.tradingview.com/tv.js"]');
+      if (existingScript && window.TradingView) {
+        resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://s3.tradingview.com/tv.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load TradingView script"));
+      document.head.appendChild(script);
+    });
+    return loadPromise;
+  };
+})();
+
 const TradingChart = () => {
-  // Mock data - in a real app, this would come from an API
+  // Mock data - replace with live metrics if available
   const currentPrice = 1.2345;
   const priceChange = 2.34;
   const isPositive = priceChange > 0;
+  const widgetContainerRef = useRef<HTMLDivElement | null>(null);
+  const widgetContainerIdRef = useRef(`tv-chart-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initWidget = async () => {
+      try {
+        await loadTradingViewScript();
+        if (!isMounted || !window.TradingView || !widgetContainerRef.current) {
+          return;
+        }
+        widgetContainerRef.current.innerHTML = "";
+        /* eslint-disable camelcase */
+        new window.TradingView.widget({
+          autosize: true,
+          symbol: "BINANCE:XTZUSDC",
+          interval: "60",
+          timezone: "Etc/UTC",
+          theme: "dark",
+          style: "1",
+          locale: "en",
+          toolbar_bg: "rgba(0, 0, 0, 0)",
+          enable_publishing: false,
+          hide_top_toolbar: false,
+          hide_legend: false,
+          save_image: false,
+          container_id: widgetContainerIdRef.current,
+        });
+        /* eslint-enable camelcase */
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    initWidget();
+
+    return () => {
+      isMounted = false;
+      if (widgetContainerRef.current) {
+        widgetContainerRef.current.innerHTML = "";
+      }
+    };
+  }, []);
 
   return (
     <Card className="h-full bg-chart-bg border-border/50 p-4">
@@ -33,32 +107,25 @@ const TradingChart = () => {
         </div>
       </div>
 
-      {/* Placeholder for chart */}
-      <div className="w-full h-[400px] bg-background/50 rounded-lg flex items-center justify-center border border-border/30">
-        <div className="text-center text-muted-foreground">
-          <div className="mb-2">📊</div>
-          <p>Chart will be displayed here</p>
-          <p className="text-xs mt-1">Real-time price data integration pending</p>
-        </div>
-      </div>
+      <div
+        ref={widgetContainerRef}
+        id={widgetContainerIdRef.current}
+        className="w-full h-[400px] rounded-lg border border-border/30"
+      />
 
       {/* Mock stats */}
       <div className="grid grid-cols-4 gap-4 mt-4">
         <div>
           <p className="text-xs text-muted-foreground">24h High</p>
-          <p className="text-sm font-semibold">$1.2567</p>
+          <p className="text-sm font-semibold">TBD</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">24h Low</p>
-          <p className="text-sm font-semibold">$1.2103</p>
+          <p className="text-sm font-semibold">TBD</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">24h Volume</p>
-          <p className="text-sm font-semibold">$2.4M</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Spread</p>
-          <p className="text-sm font-semibold">0.01%</p>
+          <p className="text-sm font-semibold">TBD</p>
         </div>
       </div>
     </Card>
