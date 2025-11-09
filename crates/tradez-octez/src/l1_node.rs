@@ -20,8 +20,7 @@ pub struct L1NodeConfig {
 impl L1Node {
     pub fn launch(config: L1NodeConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<()>();
-        let net_port =
-            pick_unused_port();
+        let net_port = pick_unused_port();
         let metrics_port = pick_unused_port();
         let rpc_port = pick_unused_port();
         let node_data_dir = TempDir::with_suffix("tradez_l1_node")

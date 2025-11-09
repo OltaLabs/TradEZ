@@ -21,6 +21,7 @@ pub struct SequencerHost {
     pub inputs: VecDeque<Vec<u8>>,
     pub db: Database,
     pub event_to_notify: Vec<Event>,
+    pub input_to_send_to_rollup: VecDeque<Vec<u8>>,
 }
 
 impl SequencerHost {
@@ -30,12 +31,14 @@ impl SequencerHost {
             db,
             inputs: VecDeque::new(),
             event_to_notify: Vec::new(),
+            input_to_send_to_rollup: VecDeque::new(),
         }
     }
 
     pub fn add_inputs(&mut self, new_inputs: Vec<Vec<u8>>) {
         for input in new_inputs {
-            self.inputs.push_back(input);
+            self.inputs.push_back(input.clone());
+            self.input_to_send_to_rollup.push_back(input);
         }
     }
 

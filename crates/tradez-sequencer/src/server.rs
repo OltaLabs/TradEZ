@@ -24,10 +24,48 @@ use tradez_types::{
 
 use crate::host::SequencerHost;
 
+pub const NUMBER_INPUTS_IN_ONE_ROLLUP_MESSAGE: usize = 50;
+
 pub struct TradezRpcImpl {
     pub smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient,
     pub host: Arc<Mutex<SequencerHost>>,
     pub subscribers: Arc<Mutex<Vec<SubscriptionSink>>>,
+}
+
+impl TradezRpcImpl {
+    async fn process_inputs_with_host<F, R>(&self, inputs: Vec<Vec<u8>>, with_host: F) -> R
+    where
+        F: FnOnce(&mut SequencerHost) -> R,
+    {
+        let mut host = self.host.lock().await;
+        host.add_inputs(inputs);
+        kernel_loop(&mut *host);
+        let result = with_host(&mut host);
+        let maybe_batch =
+            if host.input_to_send_to_rollup.len() >= NUMBER_INPUTS_IN_ONE_ROLLUP_MESSAGE {
+                Some(
+                    host.input_to_send_to_rollup
+                        .drain(0..NUMBER_INPUTS_IN_ONE_ROLLUP_MESSAGE)
+                        .collect(),
+                )
+            } else {
+                None
+            };
+        if let Some(batch) = maybe_batch {
+            if let Err(e) = self
+                .smart_rollup_node_client
+                .inject_inbox_messages(batch)
+                .await
+            {
+                println!("Failed to inject inbox message: {:?}", e);
+            }
+        }
+        result
+    }
+
+    async fn process_inputs(&self, inputs: Vec<Vec<u8>>) {
+        self.process_inputs_with_host(inputs, |_| ()).await;
+    }
 }
 
 #[async_trait::async_trait]
@@ -38,27 +76,22 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
+        let (bids, asks, events) = self
+            .process_inputs_with_host(inputs, |host| {
+                let orderbook = OrderBook::load(&mut *host).unwrap();
+                let (bids, asks) = orderbook.bids_and_asks();
+                let events = std::mem::take(&mut host.event_to_notify);
+                (bids, asks, events)
+            })
+            .await;
+
         {
-            let mut host = self.host.lock().await;
-            host.add_inputs(inputs.clone());
-            kernel_loop(&mut *host);
-            let orderbook = OrderBook::load(&mut *host).unwrap();
-            let mut bids = Vec::new();
-            for (price, levels) in orderbook.bids.iter().rev() {
-                let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
-                bids.push((*price, total_qty));
-            }
-            let mut asks = Vec::new();
-            for (price, levels) in orderbook.asks.iter() {
-                let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
-                asks.push((*price, total_qty));
-            }
             let mut subscribers = self.subscribers.lock().await;
             subscribers.retain(|subscriber| !subscriber.is_closed());
             for subscriber in subscribers.iter() {
                 match subscriber.method_name() {
                     "subscribeEvent" => {
-                        for event in &std::mem::take(&mut host.event_to_notify) {
+                        for event in &events {
                             subscriber
                                 .send(serde_json::value::to_raw_value(event).unwrap())
                                 .await
@@ -78,13 +111,6 @@ impl TradezRpcServer for TradezRpcImpl {
                 }
             }
         }
-        if let Err(e) = self
-            .smart_rollup_node_client
-            .inject_inbox_messages(inputs)
-            .await
-        {
-            println!("Failed to inject inbox message: {:?}", e);
-        }
         Ok(String::from("Order received"))
     }
 
@@ -94,18 +120,7 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
-        {
-            let mut host = self.host.lock().await;
-            host.add_inputs(inputs.clone());
-            kernel_loop(&mut *host);
-        }
-        if let Err(e) = self
-            .smart_rollup_node_client
-            .inject_inbox_messages(inputs)
-            .await
-        {
-            println!("Failed to inject inbox message: {:?}", e);
-        }
+        self.process_inputs(inputs).await;
         Ok(String::from("Cancel request received"))
     }
 
@@ -115,18 +130,7 @@ impl TradezRpcServer for TradezRpcImpl {
                 .rlp_bytes()
                 .to_vec(),
         ];
-        {
-            let mut host = self.host.lock().await;
-            host.add_inputs(inputs.clone());
-            kernel_loop(&mut *host);
-        }
-        if let Err(e) = self
-            .smart_rollup_node_client
-            .inject_inbox_messages(inputs)
-            .await
-        {
-            println!("Failed to inject inbox message: {:?}", e);
-        }
+        self.process_inputs(inputs).await;
         Ok(String::from("Faucet request received"))
     }
 
@@ -188,17 +192,7 @@ impl TradezRpcServer for TradezRpcImpl {
         let orderbook = orderbook_result.map_err(|e| {
             ErrorObject::owned::<()>(-32000, format!("Failed to load orderbook: {:?}", e), None)
         })?;
-        let mut bids = Vec::new();
-        for (price, levels) in orderbook.bids.iter().rev() {
-            let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
-            bids.push((*price, total_qty));
-        }
-        let mut asks = Vec::new();
-        for (price, levels) in orderbook.asks.iter() {
-            let total_qty: Qty = levels.iter().map(|level| level.remaining).sum();
-            asks.push((*price, total_qty));
-        }
-        Ok((bids, asks))
+        Ok(orderbook.bids_and_asks())
     }
 
     async fn get_history(&self) -> RpcResult<Vec<(u128, Qty, Price, Side)>> {

@@ -36,13 +36,13 @@ impl Client {
             .arg(wallet_dir.path())
             .arg("create");
         run_command(
-                &mut command,
-                "tradez-client",
-                config.verbose,
-                config.print_commands,
-                "Failed to spawn tradez-client command",
-                "Failed to wait for tradez-client command",
-            );
+            &mut command,
+            "tradez-client",
+            config.verbose,
+            config.print_commands,
+            "Failed to spawn tradez-client command",
+            "Failed to wait for tradez-client command",
+        );
         Client {
             rpc_url,
             wallet_dir,

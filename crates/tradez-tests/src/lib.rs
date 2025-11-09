@@ -7,9 +7,9 @@ mod setup;
 
 #[cfg(test)]
 mod tests {
+    use crate::setup::{TestConfig, tradez_test_wrapper};
     use rlp::{Decodable, Rlp};
     use tradez_types::orderbook::{ORDER_BOOK_STR_PATH, OrderBook};
-    use crate::setup::{TestConfig, tradez_test_wrapper};
 
     // Here you can write integration tests that use tradez (sequencer + client) and an L1 node + smart rollup node + tezos client
     #[tokio::test]
