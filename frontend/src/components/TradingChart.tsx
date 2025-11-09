@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { useMarket } from "@/contexts/MarketContext";
 
 declare global {
   interface Window {
@@ -32,10 +33,18 @@ const loadTradingViewScript = (() => {
 })();
 
 const TradingChart = () => {
-  // Mock data - replace with live metrics if available
-  const currentPrice = 1.2345;
-  const priceChange = 2.34;
+  const { bestBid } = useMarket();
+  const fallbackPrice = 1.2345;
+  const currentPrice = bestBid ? Number(bestBid.replace(/,/g, "")) : fallbackPrice;
+  const priceChange = currentPrice
+    ? Number((((currentPrice - fallbackPrice) / fallbackPrice) * 100).toFixed(2))
+    : 0;
   const isPositive = priceChange > 0;
+  const formattedPrice = useMemo(() => {
+    return Number.isFinite(currentPrice)
+      ? currentPrice.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+      : fallbackPrice.toFixed(4);
+  }, [currentPrice]);
   const widgetContainerRef = useRef<HTMLDivElement | null>(null);
   const widgetContainerIdRef = useRef(`tv-chart-${Math.random().toString(36).slice(2)}`);
 
@@ -94,7 +103,7 @@ const TradingChart = () => {
             )}
           </h2>
           <div className="flex items-center gap-3 mt-1">
-            <span className="text-xl font-semibold">${currentPrice}</span>
+            <span className="text-xl font-semibold">${formattedPrice}</span>
             <span
               className={`text-sm font-medium ${
                 isPositive ? "text-buy" : "text-sell"

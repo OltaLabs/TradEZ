@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RpcEvent, useTradezApi } from "@/hooks/useTradezApi";
+import { useMarket } from "@/contexts/MarketContext";
 
 const DECIMALS = 6;
 
@@ -35,6 +36,7 @@ const formatDecimal = (value: bigint, fractionDigits: number) => {
 
 const OrderBook = () => {
   const { subscribeEvent, subscribeOrderbookState, isApiConfigured } = useTradezApi();
+  const { setBestBid: setGlobalBestBid } = useMarket();
   const [asks, setAsks] = useState<OrderBookEntry[]>([]);
   const [bids, setBids] = useState<OrderBookEntry[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -135,8 +137,10 @@ const OrderBook = () => {
 
         if (mappedBids.length > 0) {
           setBestBid(mappedBids[0].price);
+          setGlobalBestBid(mappedBids[0].price);
         } else {
           setBestBid(null);
+          setGlobalBestBid(null);
         }
         if (mappedAsks.length > 0) {
           setBestAsk(mappedAsks[0].price);
@@ -166,7 +170,7 @@ const OrderBook = () => {
         unsubscribe();
       }
     };
-  }, [isApiConfigured, mapLevels, resetState, subscribeOrderbookState]);
+  }, [isApiConfigured, mapLevels, resetState, setGlobalBestBid, subscribeOrderbookState]);
 
   const maxBidTotal = useMemo(
     () => bids.reduce((max, entry) => (entry.totalRaw > max ? entry.totalRaw : max), 0n),
