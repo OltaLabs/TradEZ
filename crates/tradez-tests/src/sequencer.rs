@@ -29,8 +29,8 @@ pub struct Sequencer {
 }
 
 impl Sequencer {
-    pub fn new(config: SequencerConfig) -> Self {
-        let rpc_port = pick_unused_port();
+    pub fn new(config: SequencerConfig, rpc_port: Option<u16>) -> Self {
+        let rpc_port = rpc_port.unwrap_or_else(pick_unused_port);
         let data_dir = TempDir::with_suffix("tradez_sequencer")
             .expect("Failed to create temp dir for sequencer data");
         let mut command = Command::new("../../target/release/tradez-sequencer");

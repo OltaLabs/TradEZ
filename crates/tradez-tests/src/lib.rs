@@ -17,6 +17,7 @@ mod tests {
         let config = TestConfig {
             verbose: true,
             print_commands: true,
+            sequencer_rpc_port: None,
         };
         tradez_test_wrapper(
             config,
@@ -52,6 +53,7 @@ mod tests {
         let config = TestConfig {
             verbose: true,
             print_commands: true,
+            sequencer_rpc_port: None,
         };
         tradez_test_wrapper(
             config,

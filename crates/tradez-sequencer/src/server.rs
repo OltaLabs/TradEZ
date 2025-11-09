@@ -51,14 +51,13 @@ impl TradezRpcImpl {
             } else {
                 None
             };
-        if let Some(batch) = maybe_batch {
-            if let Err(e) = self
+        if let Some(batch) = maybe_batch
+            && let Err(e) = self
                 .smart_rollup_node_client
                 .inject_inbox_messages(batch)
                 .await
-            {
-                println!("Failed to inject inbox message: {:?}", e);
-            }
+        {
+            println!("Failed to inject inbox message: {:?}", e);
         }
         result
     }

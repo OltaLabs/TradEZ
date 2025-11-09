@@ -5,6 +5,7 @@ use tradez_octez::l1_node::{L1Node, L1NodeConfig};
 pub struct TestConfig {
     pub verbose: bool,
     pub print_commands: bool,
+    pub sequencer_rpc_port: Option<u16>,
 }
 
 pub async fn tradez_test_wrapper<F, R>(config: TestConfig, test_fn: F)
@@ -70,11 +71,14 @@ where
     smart_rollup_node.start("bootstrap1");
     octez_client.bake_l1_blocks(1);
     std::thread::sleep(std::time::Duration::from_secs(2));
-    let sequencer = crate::sequencer::Sequencer::new(crate::sequencer::SequencerConfig {
-        print_commands: config.print_commands,
-        verbose: config.verbose,
-        smart_rollup_node_address: smart_rollup_node.rpc_addr(),
-    });
+    let sequencer = crate::sequencer::Sequencer::new(
+        crate::sequencer::SequencerConfig {
+            print_commands: config.print_commands,
+            verbose: config.verbose,
+            smart_rollup_node_address: smart_rollup_node.rpc_addr(),
+        },
+        config.sequencer_rpc_port,
+    );
     let smart_rollup_client =
         tradez_octez::smart_rollup_node::SmartRollupClient::new(&smart_rollup_node.rpc_addr());
     std::thread::sleep(std::time::Duration::from_secs(1));

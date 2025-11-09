@@ -25,6 +25,8 @@ cargo build --release && cd tradez-tests && cargo run --release
 TODO:
 - Make RPC nodes
 - Unwraps in kernel
+- Manage reboots
+- Manage permissions for the sequencer
 - Reorg on Etherlink ?
 - Check maybe remove nonce
 - U256 ? Perf ?

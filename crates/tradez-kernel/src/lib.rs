@@ -66,6 +66,7 @@ fn amount_with_fee(amount: u64) -> Option<u64> {
     amount.checked_add(fee)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_trade_event(
     host: &mut impl Runtime,
     accounts: &mut Vec<(Address, Account)>,

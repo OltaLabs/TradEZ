@@ -13,6 +13,7 @@ async fn main() {
     let config = TestConfig {
         verbose: true,
         print_commands: false,
+        sequencer_rpc_port: Some(19000),
     };
     tradez_test_wrapper(
         config,
