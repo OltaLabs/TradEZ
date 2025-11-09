@@ -4,8 +4,8 @@ use jsonrpsee::{
 };
 
 use crate::{
-    address::Address,
     currencies::Currencies,
+    orderbook::Event,
     position::{APIOrder, CancelOrder, Faucet, Price, Qty, Side, UserOrder},
 };
 
@@ -35,6 +35,6 @@ pub trait TradezRpc {
     #[subscription(name = "subscribeOrderBookState", item = (Vec<(Price, Qty)>, Vec<(Price, Qty)>))]
     async fn subscribe_order_book_state(&self) -> SubscriptionResult;
 
-    #[subscription(name = "subscribeHistory", item = (Address, Address, u128, Qty, Price, Side))]
-    async fn subscribe_history(&self) -> SubscriptionResult;
+    #[subscription(name = "subscribeEvent", item = Event)]
+    async fn subscribe_event(&self) -> SubscriptionResult;
 }

@@ -36,13 +36,15 @@ const Header = () => {
       if (!signature) {
         throw new Error("Unable to sign faucet request");
       }
-      const result = await faucet(
+      const faucetPromise = faucet(
         {
           amount: Number(amount),
           currency,
         },
         signature
       );
+      window.dispatchEvent(new CustomEvent("tradez:faucet-called"));
+      const result = await faucetPromise;
       toast({
         title: `Test ${currency} claimed`,
         description: result || "Your faucet request was submitted.",

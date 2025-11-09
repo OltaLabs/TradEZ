@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTradezApi } from "@/hooks/useTradezApi";
+import { RpcEvent, useTradezApi } from "@/hooks/useTradezApi";
 
 const DECIMALS = 6;
 
@@ -34,7 +34,7 @@ const formatDecimal = (value: bigint, fractionDigits: number) => {
 };
 
 const OrderBook = () => {
-  const { subscribeHistory, subscribeOrderbookState, isApiConfigured } = useTradezApi();
+  const { subscribeEvent, subscribeOrderbookState, isApiConfigured } = useTradezApi();
   const [asks, setAsks] = useState<OrderBookEntry[]>([]);
   const [bids, setBids] = useState<OrderBookEntry[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -75,27 +75,19 @@ const OrderBook = () => {
     return entries;
   }, []);
 
-  const mapHistory = useCallback((entries: Array<[string, number, number, "Bid" | "Ask"]>) => {
-    const result: HistoryEntry[] = [];
-    for (const [timestamp, qty, price, side] of entries) {
-      const qtyBig = BigInt(Math.trunc(qty));
-      const priceBig = BigInt(Math.trunc(price));
-      let timeLabel = timestamp;
-      const ms = Number(timestamp);
-      if (Number.isFinite(ms)) {
-        const date = new Date(ms);
-        if (!Number.isNaN(date.getTime())) {
-          timeLabel = date.toLocaleTimeString(undefined, { hour12: false });
-        }
-      }
-      result.push({
-        time: timeLabel,
-        price: formatDecimal(priceBig, 4),
-        size: formatDecimal(qtyBig, 3),
-        side,
-      });
+  const eventToHistoryEntry = useCallback((event: RpcEvent): HistoryEntry | null => {
+    if (!("Trade" in event)) {
+      return null;
     }
-    return result;
+    const { qty, price, origin_side } = event.Trade;
+    const qtyBig = BigInt(Math.trunc(qty));
+    const priceBig = BigInt(Math.trunc(price));
+    return {
+      time: new Date().toLocaleTimeString(undefined, { hour12: false }),
+      price: formatDecimal(priceBig, 4),
+      size: formatDecimal(qtyBig, 3),
+      side: origin_side,
+    };
   }, []);
 
   useEffect(() => {
@@ -106,9 +98,13 @@ const OrderBook = () => {
 
     let unsubscribeHistory: (() => void) | null = null;
     try {
-      unsubscribeHistory = subscribeHistory((entry) => {
+      unsubscribeHistory = subscribeEvent((event) => {
         setHistory((prev) => {
-          const next = [mapHistory([entry])[0], ...prev];
+          const entry = eventToHistoryEntry(event);
+          if (!entry) {
+            return prev;
+          }
+          const next = [entry, ...prev];
           return next.slice(0, 200);
         });
       });
@@ -121,7 +117,7 @@ const OrderBook = () => {
         unsubscribeHistory();
       }
     };
-  }, [isApiConfigured, mapHistory, subscribeHistory]);
+  }, [eventToHistoryEntry, isApiConfigured, subscribeEvent]);
 
   useEffect(() => {
     if (!isApiConfigured) {

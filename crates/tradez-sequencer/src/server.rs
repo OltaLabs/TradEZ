@@ -62,10 +62,10 @@ impl TradezRpcServer for TradezRpcImpl {
             subscribers.retain(|subscriber| !subscriber.is_closed());
             for subscriber in subscribers.iter() {
                 match subscriber.method_name() {
-                    "subscribeHistory" => {
-                        for trade in &std::mem::take(&mut host.trade_to_notify) {
+                    "subscribeEvent" => {
+                        for event in &std::mem::take(&mut host.event_to_notify) {
                             subscriber
-                                .send(serde_json::value::to_raw_value(trade).unwrap())
+                                .send(serde_json::value::to_raw_value(event).unwrap())
                                 .await
                                 .unwrap();
                         }
@@ -227,7 +227,7 @@ impl TradezRpcServer for TradezRpcImpl {
         Ok(())
     }
 
-    async fn subscribe_history(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+    async fn subscribe_event(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
         let sink = pending.accept().await?;
         self.subscribers.lock().await.push(sink);
         Ok(())

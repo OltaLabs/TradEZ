@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
-import { useTradezApi } from "@/hooks/useTradezApi";
+import { RpcEvent, useTradezApi } from "@/hooks/useTradezApi";
+import { normalizeAddressLike } from "@/lib/address";
 
-const BALANCE_REFRESH_MS = 200;
 const DECIMALS = 6;
 
 const OrderForm = () => {
   const { account, signMessage } = useWallet();
-  const { sendOrder, getBalances, isApiConfigured } = useTradezApi();
+  const { sendOrder, getBalances, subscribeEvent, isApiConfigured } = useTradezApi();
   const { toast } = useToast();
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
   const [price, setPrice] = useState("1.2353");
@@ -24,7 +24,7 @@ const OrderForm = () => {
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [xtzBalance, setXtzBalance] = useState<string | null>(null);
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  const faucetTimeoutRef = useRef<number | null>(null);
 
   const resetBalances = useCallback(() => {
     setXtzBalance(null);
@@ -70,28 +70,79 @@ const OrderForm = () => {
     [account, getBalances, isApiConfigured, resetBalances]
   );
 
+  const eventMentionsAccount = useCallback(
+    (event: RpcEvent, address: string) => {
+      const normalized = address.toLowerCase();
+      if ("Placed" in event) {
+        const user = normalizeAddressLike(event.Placed.user);
+        return user === normalized;
+      }
+      if ("Trade" in event) {
+        const makerUser = normalizeAddressLike(event.Trade.maker_user);
+        const takerUser = normalizeAddressLike(event.Trade.taker_user);
+        return (
+          makerUser === normalized ||
+          takerUser === normalized
+        );
+      }
+      if ("Cancelled" in event) {
+        const user = normalizeAddressLike(event.Cancelled.user);
+        return user === normalized;
+      }
+      return false;
+    },
+    []
+  );
+
   useEffect(() => {
     if (!account || !isApiConfigured) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
       resetBalances();
       return;
     }
 
     fetchBalances().catch(() => undefined);
-    intervalRef.current = window.setInterval(() => {
-      fetchBalances(true).catch(() => undefined);
-    }, BALANCE_REFRESH_MS);
+
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = subscribeEvent((event) => {
+        if (eventMentionsAccount(event, account)) {
+          fetchBalances(true).catch(() => undefined);
+        }
+      });
+    } catch (err) {
+      console.error("Failed to subscribe for balance updates:", err);
+    }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
-  }, [account, fetchBalances, isApiConfigured, resetBalances]);
+  }, [account, eventMentionsAccount, fetchBalances, isApiConfigured, resetBalances, subscribeEvent]);
+
+  useEffect(() => {
+    const handleFaucetCall = () => {
+      if (!account || !isApiConfigured) {
+        return;
+      }
+      if (faucetTimeoutRef.current) {
+        clearTimeout(faucetTimeoutRef.current);
+      }
+      faucetTimeoutRef.current = window.setTimeout(() => {
+        faucetTimeoutRef.current = null;
+        fetchBalances(true).catch(() => undefined);
+      }, 1000);
+    };
+
+    window.addEventListener("tradez:faucet-called", handleFaucetCall);
+    return () => {
+      window.removeEventListener("tradez:faucet-called", handleFaucetCall);
+      if (faucetTimeoutRef.current) {
+        clearTimeout(faucetTimeoutRef.current);
+        faucetTimeoutRef.current = null;
+      }
+    };
+  }, [account, fetchBalances, isApiConfigured]);
 
   const handlePlaceOrder = async (side: "buy" | "sell") => {
     if (!account) {
@@ -154,7 +205,6 @@ const OrderForm = () => {
 
       // Reset form
       setAmount("");
-      fetchBalances(true).catch(() => undefined);
     } catch (error: any) {
       console.error("Error placing order:", error);
       toast({

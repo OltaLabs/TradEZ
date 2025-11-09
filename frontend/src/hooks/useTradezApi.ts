@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 export type RpcCurrency = "USDC" | "XTZ";
 export type RpcQty = number;
@@ -24,14 +24,6 @@ export type RpcFaucet = {
 export type RpcBalancesResult = Array<[RpcCurrency, RpcQty]>;
 export type RpcOrderbookLevels = Array<[RpcPrice, RpcQty]>;
 export type RpcOrderbookState = [RpcOrderbookLevels, RpcOrderbookLevels];
-export type RpcTradeHistoryEntry = [
-  string,
-  string,
-  number,
-  RpcQty,
-  RpcPrice,
-  "Bid" | "Ask"
-];
 export type RpcUserOrder = {
   side: "Bid" | "Ask";
   ord_type: "Limit" | "Market";
@@ -41,6 +33,40 @@ export type RpcUserOrder = {
   nonce: number;
 };
 export type RpcOrdersResult = Array<[number, RpcUserOrder]>;
+export type RpcEvent =
+  | {
+      Placed: {
+        user: unknown;
+        id: number;
+        side: "Bid" | "Ask";
+        price: RpcPrice;
+        qty: RpcQty;
+      };
+    }
+  | {
+      Trade: {
+        maker_id: number;
+        maker_user: unknown;
+        taker_id: number;
+        taker_user: unknown;
+        price: RpcPrice;
+        qty: RpcQty;
+        origin_side: "Bid" | "Ask";
+      };
+    }
+  | {
+      Done: {
+        user: unknown;
+        id: number;
+      };
+    }
+  | {
+      Cancelled: {
+        user: unknown;
+        id: number;
+        reason: string;
+      };
+    };
 
 const trimTrailingSlash = (value?: string) => value?.replace(/\/+$/, "");
 
@@ -78,6 +104,177 @@ const toByteArray = (input: RpcSignatureInput): number[] => {
   return [...input];
 };
 
+const API_BASE_URL = trimTrailingSlash(
+  import.meta.env.VITE_TRADEZ_API_URL as string | undefined
+);
+
+const WS_BASE_URL = (() => {
+  if (!API_BASE_URL) {
+    return null;
+  }
+  try {
+    const url = new URL(API_BASE_URL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    return url.toString();
+  } catch {
+    console.error("Invalid API URL; websocket subscriptions disabled.");
+    return null;
+  }
+})();
+
+type SubscriptionListener = (payload: any) => void;
+
+class SubscriptionManager {
+  private socket: WebSocket | null = null;
+  private listeners = new Map<string, Set<SubscriptionListener>>();
+  private subscribedMethods = new Set<string>();
+  private reconnectTimeout: number | null = null;
+
+  constructor(private readonly baseUrl: string | null) {}
+
+  subscribe(method: string, listener: SubscriptionListener) {
+    if (!this.baseUrl) {
+      throw new Error("Set VITE_TRADEZ_API_URL to enable backend subscriptions.");
+    }
+    let listeners = this.listeners.get(method);
+    const isFirstListener = !listeners || listeners.size === 0;
+    if (!listeners) {
+      listeners = new Set();
+      this.listeners.set(method, listeners);
+    }
+    listeners.add(listener);
+    this.ensureSocket();
+    if (isFirstListener && this.socket?.readyState === WebSocket.OPEN) {
+      this.sendSubscriptionRequest(method);
+    }
+    return () => {
+      this.unsubscribe(method, listener);
+    };
+  }
+
+  private unsubscribe(method: string, listener: SubscriptionListener) {
+    const listeners = this.listeners.get(method);
+    if (!listeners) {
+      return;
+    }
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      this.listeners.delete(method);
+      this.subscribedMethods.delete(method);
+      if (this.listeners.size === 0) {
+        this.teardown();
+      }
+    }
+  }
+
+  private teardown() {
+    if (this.reconnectTimeout) {
+      if (typeof window !== "undefined") {
+        window.clearTimeout(this.reconnectTimeout);
+      }
+      this.reconnectTimeout = null;
+    }
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    this.subscribedMethods.clear();
+  }
+
+  private ensureSocket() {
+    if (!this.baseUrl) {
+      return null;
+    }
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
+      return this.socket;
+    }
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const socket = new WebSocket(this.baseUrl);
+    this.socket = socket;
+
+    socket.addEventListener("open", () => {
+      this.subscribedMethods.clear();
+      this.listeners.forEach((_listeners, method) => {
+        this.sendSubscriptionRequest(method);
+      });
+    });
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const method = payload?.method;
+        if (!method) {
+          return;
+        }
+        const listeners = this.listeners.get(method);
+        if (!listeners) {
+          return;
+        }
+        listeners.forEach((listener) => {
+          try {
+            listener(payload);
+          } catch (error) {
+            console.error(`Listener for ${method} threw:`, error);
+          }
+        });
+      } catch (error) {
+        console.error("Failed to parse websocket payload:", error);
+      }
+    });
+
+    socket.addEventListener("error", (event) => {
+      console.error("Websocket subscription error:", event);
+    });
+
+    socket.addEventListener("close", () => {
+      this.socket = null;
+      this.subscribedMethods.clear();
+      if (this.listeners.size > 0 && !this.reconnectTimeout) {
+        this.reconnectTimeout = window.setTimeout(() => {
+          this.reconnectTimeout = null;
+          this.ensureSocket();
+        }, 1000);
+      }
+    });
+
+    return socket;
+  }
+
+  private sendSubscriptionRequest(method: string) {
+    if (this.subscribedMethods.has(method)) {
+      return;
+    }
+    const socket = this.socket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const requestId = `${method}-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    socket.send(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: requestId,
+        method,
+        params: [],
+      })
+    );
+    this.subscribedMethods.add(method);
+  }
+}
+
+const subscriptionManager = new SubscriptionManager(WS_BASE_URL);
+
 type JsonRpcSuccess<T> = {
   jsonrpc: "2.0";
   id: number | string | null;
@@ -95,30 +292,12 @@ type JsonRpcError = {
 };
 
 export const useTradezApi = () => {
-  const apiBaseUrl = useMemo(
-    () => trimTrailingSlash(import.meta.env.VITE_TRADEZ_API_URL as string | undefined),
-    []
-  );
-  const wsBaseUrl = useMemo(() => {
-    if (!apiBaseUrl) {
-      return null;
-    }
-    try {
-      const url = new URL(apiBaseUrl);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      return url.toString();
-    } catch {
-      console.error("Invalid API URL; websocket subscriptions disabled.");
-      return null;
-    }
-  }, [apiBaseUrl]);
-
   const callRpc = useCallback(
     async <T>(method: string, params: unknown[]) => {
-      if (!apiBaseUrl) {
+      if (!API_BASE_URL) {
         throw new Error("Set VITE_TRADEZ_API_URL to enable backend requests.");
       }
-      const response = await fetch(apiBaseUrl, {
+      const response = await fetch(API_BASE_URL, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -158,7 +337,7 @@ export const useTradezApi = () => {
 
       return (payload as JsonRpcSuccess<T>).result;
     },
-    [apiBaseUrl]
+    [API_BASE_URL]
   );
 
   const sendOrder = useCallback(
@@ -200,44 +379,9 @@ export const useTradezApi = () => {
     return callRpc<RpcOrderbookState>("get_orderbook_state", []);
   }, [callRpc]);
 
-  const subscribeJsonRpc = useCallback(
-    (method: string, onMessage: (payload: any) => void) => {
-      if (!wsBaseUrl) {
-        throw new Error("Set VITE_TRADEZ_API_URL to enable backend subscriptions.");
-      }
-      const socket = new WebSocket(wsBaseUrl);
-      const requestId = Date.now();
-
-      socket.addEventListener("open", () => {
-        socket.send(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: requestId,
-            method,
-            params: [],
-          })
-        );
-      });
-
-      socket.addEventListener("message", (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          onMessage(payload);
-        } catch (error) {
-          console.error("Failed to parse websocket payload:", error);
-        }
-      });
-
-      socket.addEventListener("error", (event) => {
-        console.error("Websocket subscription error:", event);
-      });
-
-      return () => {
-        socket.close();
-      };
-    },
-    [wsBaseUrl]
-  );
+  const subscribeJsonRpc = useCallback((method: string, onMessage: (payload: any) => void) => {
+    return subscriptionManager.subscribe(method, onMessage);
+  }, []);
 
   const subscribeOrderbookState = useCallback(
     (onMessage: (state: RpcOrderbookState) => void) =>
@@ -252,22 +396,19 @@ export const useTradezApi = () => {
     [subscribeJsonRpc]
   );
 
-  const subscribeHistory = useCallback(
-    (onMessage: (entry: RpcTradeHistoryEntry) => void) =>
-      subscribeJsonRpc("subscribeHistory", (payload) => {
-        if (
-          payload?.method === "subscribeHistory" &&
-          payload?.params?.result
-        ) {
-          onMessage(payload.params.result as RpcTradeHistoryEntry);
+  const subscribeEvent = useCallback(
+    (onMessage: (event: RpcEvent) => void) =>
+      subscribeJsonRpc("subscribeEvent", (payload) => {
+        if (payload?.method === "subscribeEvent" && payload?.params?.result) {
+          onMessage(payload.params.result as RpcEvent);
         }
       }),
     [subscribeJsonRpc]
   );
 
   return {
-    apiUrl: apiBaseUrl,
-    isApiConfigured: Boolean(apiBaseUrl),
+    apiUrl: API_BASE_URL,
+    isApiConfigured: Boolean(API_BASE_URL),
     sendOrder,
     cancelOrder,
     faucet,
@@ -275,6 +416,6 @@ export const useTradezApi = () => {
     getOrders,
     getOrderbookState,
     subscribeOrderbookState,
-    subscribeHistory,
+    subscribeEvent,
   };
 };

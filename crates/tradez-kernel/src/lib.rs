@@ -394,8 +394,9 @@ fn process_cancel_order(
         account.save(host).unwrap();
 
         let mut events = vec![];
-        orderbook.cancel(order.side, cancel_order.order_id, &mut events);
+        orderbook.cancel(order.side, cancel_order.order_id, caller, &mut events);
         for event in events {
+            host.write_output(&event.rlp_bytes()).unwrap();
             host.write_debug(&format!("Order book event: {:?}\n", event));
         }
         Ok(())

@@ -4,10 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useTradezApi, RpcOrdersResult } from "@/hooks/useTradezApi";
+import { RpcEvent, RpcOrdersResult, useTradezApi } from "@/hooks/useTradezApi";
 import { useWallet } from "@/hooks/useWallet";
+import { normalizeAddressLike } from "@/lib/address";
 
-const REFRESH_INTERVAL_MS = 200;
 const DECIMALS = 6;
 const PAIR_LABEL = "XTZ/USDC";
 
@@ -57,13 +57,13 @@ const mapOrders = (orders: RpcOrdersResult): DisplayOrder[] => {
 const MyOrders = () => {
   const { account, signMessage } = useWallet();
   const { toast } = useToast();
-  const { getOrders, cancelOrder, isApiConfigured } = useTradezApi();
+  const { getOrders, cancelOrder, subscribeEvent, isApiConfigured } = useTradezApi();
   const [orders, setOrders] = useState<DisplayOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
-  const pollingRef = useRef<number | null>(null);
   const fetchingRef = useRef(false);
+  const orderIdsRef = useRef<Set<number>>(new Set());
 
   const resetState = useCallback((message?: string) => {
     setOrders([]);
@@ -106,27 +106,110 @@ const MyOrders = () => {
   );
 
   useEffect(() => {
-    if (!account || !isApiConfigured) {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+    orderIdsRef.current = new Set(orders.map((order) => order.id));
+  }, [orders]);
+
+  const notifyTradeEvent = useCallback(
+    (event: RpcEvent, address: string) => {
+      const normalized = address.toLowerCase();
+      const showSuccessToast = (title: string, description: string) => {
+        toast({
+          title,
+          description,
+          duration: 500,
+          className:
+            "border border-emerald-500 bg-emerald-500 text-emerald-900 dark:text-emerald-100",
+        });
+      };
+
+      if ("Trade" in event) {
+        const makerUser = normalizeAddressLike(event.Trade.maker_user);
+        const takerUser = normalizeAddressLike(event.Trade.taker_user);
+        if (makerUser !== normalized && takerUser !== normalized) {
+          return false;
+        }
+        const role = makerUser === normalized ? "Maker" : "Taker";
+        const qtyLabel = formatDecimal(event.Trade.qty, 3);
+        const priceLabel = formatDecimal(event.Trade.price, 4);
+        showSuccessToast(
+          "Order partially filled",
+          `${role} fill: ${qtyLabel} XTZ @ $${priceLabel}`
+        );
+        return true;
       }
+
+      if ("Done" in event) {
+        const user = normalizeAddressLike(event.Done.user);
+        if (user !== normalized) {
+          return false;
+        }
+        showSuccessToast("Order completed", `Order #${event.Done.id} fully filled.`);
+        return true;
+      }
+
+      return false;
+    },
+    [toast]
+  );
+
+  const eventTargetsAccount = useCallback(
+    (event: RpcEvent, address: string) => {
+      const normalizedAddress = address.toLowerCase();
+      const knownIds = orderIdsRef.current;
+      if ("Placed" in event) {
+        const user = normalizeAddressLike(event.Placed.user);
+        return user === normalizedAddress;
+      }
+      if ("Trade" in event) {
+        const makerUser = normalizeAddressLike(event.Trade.maker_user);
+        const takerUser = normalizeAddressLike(event.Trade.taker_user);
+        return (
+          makerUser === normalizedAddress ||
+          takerUser === normalizedAddress ||
+          knownIds.has(event.Trade.maker_id) ||
+          knownIds.has(event.Trade.taker_id)
+        );
+      }
+      if ("Done" in event) {
+        const user = normalizeAddressLike(event.Done.user);
+        return user === normalizedAddress || knownIds.has(event.Done.id);
+      }
+      if ("Cancelled" in event) {
+        const user = normalizeAddressLike(event.Cancelled.user);
+        return user === normalizedAddress || knownIds.has(event.Cancelled.id);
+      }
+      return false;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!account || !isApiConfigured) {
       resetState(account ? "Backend unavailable" : null);
       return;
     }
 
     fetchOrders().catch(() => undefined);
-    pollingRef.current = window.setInterval(() => {
-      fetchOrders(true).catch(() => undefined);
-    }, REFRESH_INTERVAL_MS);
+
+    let unsubscribe: (() => void) | null = null;
+    try {
+      unsubscribe = subscribeEvent((event) => {
+        const affectsAccount = eventTargetsAccount(event, account);
+        notifyTradeEvent(event, account);
+        if (affectsAccount) {
+          fetchOrders(true).catch(() => undefined);
+        }
+      });
+    } catch (err: any) {
+      console.error("Failed to subscribe to events:", err);
+    }
 
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
-  }, [account, fetchOrders, isApiConfigured, resetState]);
+  }, [account, eventTargetsAccount, fetchOrders, isApiConfigured, notifyTradeEvent, resetState, subscribeEvent]);
 
   const handleCancelOrder = useCallback(
     async (orderId: number) => {

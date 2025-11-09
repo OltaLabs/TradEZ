@@ -6,12 +6,14 @@ use crate::{
     position::{OrdType, Order, Price, Qty, Side},
 };
 use rlp::{Decodable, Encodable};
+use serde::{Deserialize, Serialize};
 use tezos_smart_rollup::host::{Runtime, RuntimeError};
 use tezos_smart_rollup_host::path::RefPath;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
     Placed {
+        user: Address,
         id: u64,
         side: Side,
         price: Price,
@@ -32,7 +34,8 @@ pub enum Event {
     }, // ordre entièrement exécuté
     Cancelled {
         id: u64,
-        reason: &'static str,
+        user: Address,
+        reason: String,
     },
 }
 
@@ -41,13 +44,15 @@ impl Encodable for Event {
         match self {
             Event::Placed {
                 id,
+                user,
                 side,
                 price,
                 qty,
             } => {
-                s.begin_list(5);
+                s.begin_list(6);
                 s.append(&0u8); // tag
                 s.append(id);
+                s.append(user);
                 s.append(&(*side as u8));
                 s.append(price);
                 s.append(qty);
@@ -77,10 +82,11 @@ impl Encodable for Event {
                 s.append(user);
                 s.append(id);
             }
-            Event::Cancelled { id, reason } => {
-                s.begin_list(3);
+            Event::Cancelled { id, user, reason } => {
+                s.begin_list(4);
                 s.append(&3u8); // tag
                 s.append(id);
+                s.append(user);
                 s.append(reason);
             }
         }
@@ -97,6 +103,10 @@ impl Decodable for Event {
         match tag {
             0 => {
                 let id: u64 = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
+                let user: Address = it
                     .next()
                     .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
                     .as_val()?;
@@ -119,6 +129,7 @@ impl Decodable for Event {
                     .as_val()?;
                 Ok(Event::Placed {
                     id,
+                    user,
                     side,
                     price,
                     qty,
@@ -184,14 +195,15 @@ impl Decodable for Event {
                     .next()
                     .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
                     .as_val()?;
+                let user: Address = it
+                    .next()
+                    .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
+                    .as_val()?;
                 let reason: String = it
                     .next()
                     .ok_or(rlp::DecoderError::RlpIncorrectListLen)?
                     .as_val()?;
-                Ok(Event::Cancelled {
-                    id,
-                    reason: Box::leak(reason.into_boxed_str()),
-                })
+                Ok(Event::Cancelled { id, user, reason })
             }
             _ => Err(rlp::DecoderError::Custom("Invalid event tag")),
         }
@@ -369,6 +381,7 @@ impl OrderBook {
             side,
             price,
             qty,
+            user,
         });
 
         self.match_incoming(&mut taker, out);
@@ -411,6 +424,7 @@ impl OrderBook {
             side,
             price: 0,
             qty,
+            user,
         });
 
         self.match_incoming(&mut taker, out);
@@ -418,7 +432,8 @@ impl OrderBook {
         if taker.remaining > 0 {
             out.push(Event::Cancelled {
                 id,
-                reason: "unfilled_market",
+                user,
+                reason: "unfilled_market".to_string(),
             });
         } else {
             out.push(Event::Done { user, id });
@@ -427,7 +442,7 @@ impl OrderBook {
     }
 
     /// Annule un ordre par id sur un côté donné. Retourne true si trouvé.
-    pub fn cancel(&mut self, side: Side, id: u64, out: &mut Vec<Event>) -> bool {
+    pub fn cancel(&mut self, side: Side, id: u64, user: Address, out: &mut Vec<Event>) -> bool {
         let ladder = match side {
             Side::Bid => &mut self.bids,
             Side::Ask => &mut self.asks,
@@ -451,7 +466,8 @@ impl OrderBook {
         if removed {
             out.push(Event::Cancelled {
                 id,
-                reason: "by_user",
+                user,
+                reason: "by_user".to_string(),
             });
         }
         removed
@@ -642,7 +658,8 @@ mod tests {
         let mut cancelled = false;
         if let Some(q) = ob.asks.get(&3_600_000) {
             let id = q.front().unwrap().id;
-            cancelled = ob.cancel(Side::Ask, id, &mut ev);
+            let user = q.front().unwrap().user;
+            cancelled = ob.cancel(Side::Ask, id, user, &mut ev);
         }
         assert!(cancelled);
 
@@ -683,6 +700,7 @@ mod tests {
                 side: Side::Bid,
                 price: 3_500_000,
                 qty: 1_000_000,
+                user: Address::ZERO,
             },
             Event::Trade {
                 maker_id: 1,
@@ -699,7 +717,8 @@ mod tests {
             },
             Event::Cancelled {
                 id: 2,
-                reason: "by_user",
+                user: Address::ZERO,
+                reason: "by_user".to_string(),
             },
         ];
 
