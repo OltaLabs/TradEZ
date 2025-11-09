@@ -145,10 +145,6 @@ async fn main() {
                     // Implement balance fetching logic here
                 }
                 WalletCommand::OpenPosition { side, size, price } => {
-                    println!(
-                        "Opening position with side: {}, size: {}, price: {} for wallet: {}",
-                        side, size, price, wallet_cmd.name
-                    );
                     let api_order = APIOrder {
                         side: if side == 0 {
                             tradez_types::position::Side::Bid

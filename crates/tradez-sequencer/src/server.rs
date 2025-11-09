@@ -33,10 +33,6 @@ pub struct TradezRpcImpl {
 #[async_trait::async_trait]
 impl TradezRpcServer for TradezRpcImpl {
     async fn send_order(&self, api_order: APIOrder, signature: Vec<u8>) -> RpcResult<String> {
-        println!(
-            "Received order: side={}, size={}, price={}",
-            api_order.side, api_order.size, api_order.price
-        );
         let inputs = vec![
             SignedInput::new(KernelMessage::PlaceOrder(api_order), signature)
                 .rlp_bytes()
@@ -45,7 +41,6 @@ impl TradezRpcServer for TradezRpcImpl {
         {
             let mut host = self.host.lock().await;
             host.add_inputs(inputs.clone());
-            println!("Executing order in native kernel...");
             kernel_loop(&mut *host);
             let orderbook = OrderBook::load(&mut *host).unwrap();
             let mut bids = Vec::new();

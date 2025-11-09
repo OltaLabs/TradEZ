@@ -23,13 +23,10 @@ cargo build --release && cd tradez-tests && cargo run --release
 ```
 
 TODO:
-- Don't duplicate orders in book and accounts
 - Make RPC nodes
-- Stream trades that succeeded 
-- Fix buy/sell with faucet
 - Unwraps in kernel
+- Reorg on Etherlink ?
 - Check maybe remove nonce
-- Becareful with 1 XTZ is 10000000 XTZ
 - U256 ? Perf ?
 
 Send one big batch of op to the kernel run in smartrollupnode to mutualise a lot of cost to counter the time it takes to launch a vm

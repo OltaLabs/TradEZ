@@ -32,7 +32,6 @@ impl Wallet {
     }
 
     pub fn sign_message(&self, message: &[u8]) -> Result<Vec<u8>, String> {
-        println!("Signing with key: {:?}", self.local_signer.public_key());
         let signature = self
             .local_signer
             .sign_message_sync(message)

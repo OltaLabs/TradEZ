@@ -436,7 +436,6 @@ fn process_faucet(host: &mut impl Runtime, faucet: Faucet, signature: &[u8]) -> 
 
 #[entrypoint::main]
 pub fn kernel_loop<Host: tezos_smart_rollup_host::runtime::Runtime>(host: &mut Host) {
-    host.write_debug("Kernel started.\n");
     while let Some(msg) = host.read_input().unwrap() {
         handle_message(host, msg);
     }
