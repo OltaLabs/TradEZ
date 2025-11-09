@@ -258,7 +258,7 @@ const OrderForm = () => {
       </div>
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground">Fees</span>
-        <span className="font-semibold text-muted-foreground">TODO</span>
+        <span className="font-semibold text-muted-foreground">0.01% Taker</span>
       </div>
     </div>
   );

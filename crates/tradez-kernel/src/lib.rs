@@ -56,7 +56,7 @@ fn trading_fee(amount: u64) -> u64 {
     if amount == 0 {
         0
     } else {
-        let proportional_fee = amount / 1000;
+        let proportional_fee = amount / 10000; // 0.01% fee
         proportional_fee.max(1)
     }
 }
