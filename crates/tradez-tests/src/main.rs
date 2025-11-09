@@ -30,19 +30,23 @@ async fn main() {
                 let price: u64 = rand.gen_range(900000..=1100000);
                 price_values.push(price);
             }
+            let mut i = 0;
             loop {
                 octez_client.bake_l1_blocks(1);
-                for _ in 0..5 {
-                    // Place buy orders of a size between 1000000 and 10000000 at a price between 900000 and 1100000 ( 10 different possibles prices )
-                    let size: u64 = rand.gen_range(1000000..=10000000);
-                    let price: u64 = *price_values.choose(&mut rand).unwrap();
-                    tradez_client.buy(size, price);
-                    // Place sell orders of a size between 1000000 and 10000000 at a price between 900000 and 1100000
-                    let size: u64 = rand.gen_range(1000000..=10000000);
-                    let price: u64 = *price_values.choose(&mut rand).unwrap();
-                    tradez_client.sell(size, price);
+                if i % 2 == 0 {
+                    for _ in 0..5 {
+                        // Place buy orders of a size between 1000000 and 10000000 at a price between 900000 and 1100000 ( 10 different possibles prices )
+                        let size: u64 = rand.gen_range(1000000..=10000000);
+                        let price: u64 = *price_values.choose(&mut rand).unwrap();
+                        tradez_client.buy(size, price);
+                        // Place sell orders of a size between 1000000 and 10000000 at a price between 900000 and 1100000
+                        let size: u64 = rand.gen_range(1000000..=10000000);
+                        let price: u64 = *price_values.choose(&mut rand).unwrap();
+                        tradez_client.sell(size, price);
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                i += 1;
             }
         },
     )
