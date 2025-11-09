@@ -23,12 +23,12 @@ cargo build --release && cd tradez-tests && cargo run --release
 ```
 
 TODO:
+- Send one message for multiple input using batch on rollup node (a bit like blueprint on etherlink)
 - Make RPC nodes
 - Unwraps in kernel
 - Manage reboots
 - Manage permissions for the sequencer
-- Reorg on Etherlink ?
+- bridge and so Reorg on Etherlink ?
 - Check maybe remove nonce
+- Send only the order that match a maker/taker to not send directly cancelled orders
 - U256 ? Perf ?
-
-Send one big batch of op to the kernel run in smartrollupnode to mutualise a lot of cost to counter the time it takes to launch a vm
