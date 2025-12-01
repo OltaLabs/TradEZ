@@ -24,7 +24,7 @@ use tradez_types::{
 
 use crate::host::SequencerHost;
 
-pub const NUMBER_INPUTS_IN_ONE_ROLLUP_MESSAGE: usize = 50;
+pub const NUMBER_INPUTS_IN_ONE_ROLLUP_MESSAGE: usize = 10;
 
 pub struct TradezRpcImpl {
     pub smart_rollup_node_client: tradez_octez::smart_rollup_node::SmartRollupClient,
