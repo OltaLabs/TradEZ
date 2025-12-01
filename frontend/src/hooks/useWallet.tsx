@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,14 +31,24 @@ export const getMetaMaskProvider = (): EIP1193Provider | undefined => {
   return ethereum.isMetaMask ? ethereum : undefined;
 };
 
-export const useWallet = () => {
+type WalletContextValue = {
+  account: string | null;
+  connecting: boolean;
+  connectWallet: () => Promise<void>;
+  disconnectWallet: () => void;
+  signMessage: (message: string | Uint8Array) => Promise<string | null>;
+};
+
+const WalletContext = createContext<WalletContextValue | undefined>(undefined);
+
+export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const [account, setAccount] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const { toast } = useToast();
   const providerRef = useRef<EIP1193Provider | null>(null);
   const cleanupListeners = useRef<(() => void) | null>(null);
 
-  const isProviderUnlocked = async (provider: EIP1193Provider | null | undefined) => {
+  const isProviderUnlocked = useCallback(async (provider: EIP1193Provider | null | undefined) => {
     if (!provider) {
       return false;
     }
@@ -51,9 +61,9 @@ export const useWallet = () => {
       }
     }
     return true;
-  };
+  }, []);
 
-  const connectWallet = async () => {
+  const connectWallet = useCallback(async () => {
     const injectedProvider = getMetaMaskProvider();
     providerRef.current = injectedProvider ?? null;
     if (!injectedProvider) {
@@ -87,51 +97,57 @@ export const useWallet = () => {
     } finally {
       setConnecting(false);
     }
-  };
+  }, [toast]);
 
-  const signMessage = async (message: string | Uint8Array): Promise<string | null> => {
-    const injectedProvider = providerRef.current ?? getMetaMaskProvider();
-    if (!account || !injectedProvider) {
-      return null;
-    }
+  const signMessage = useCallback(
+    async (message: string | Uint8Array): Promise<string | null> => {
+      const injectedProvider = providerRef.current ?? getMetaMaskProvider();
+      if (!account || !injectedProvider) {
+        return null;
+      }
 
-    try {
-      const provider = new ethers.BrowserProvider(injectedProvider as any);
-      const signer = await provider.getSigner();
-      const signature = await signer.signMessage(message);
-      return signature;
-    } catch (error: any) {
-      console.error("Error signing message:", error);
-      throw error;
-    }
-  };
+      try {
+        const provider = new ethers.BrowserProvider(injectedProvider as any);
+        const signer = await provider.getSigner();
+        const signature = await signer.signMessage(message);
+        return signature;
+      } catch (error: any) {
+        console.error("Error signing message:", error);
+        throw error;
+      }
+    },
+    [account]
+  );
 
-  const syncAccountFromProvider = async (
-    provider: EIP1193Provider | null | undefined,
-    accounts: string[] | null
-  ) => {
-    if (!provider) {
-      setAccount(null);
-      return;
-    }
-    const unlocked = await isProviderUnlocked(provider);
-    const activeAccount = provider.selectedAddress ?? window.ethereum?.selectedAddress;
-    if (!unlocked || !activeAccount) {
-      setAccount(null);
-      return;
-    }
-    const list = accounts ?? (await provider.request({ method: "eth_accounts" }));
-    if (!Array.isArray(list) || list.length === 0) {
-      setAccount(null);
-      return;
-    }
-    const normalized = activeAccount.toLowerCase();
-    if (list.some((a) => typeof a === "string" && a.toLowerCase() === normalized)) {
-      setAccount(activeAccount);
-    } else {
-      setAccount(null);
-    }
-  };
+  const syncAccountFromProvider = useCallback(
+    async (
+      provider: EIP1193Provider | null | undefined,
+      accounts: string[] | null
+    ) => {
+      if (!provider) {
+        setAccount(null);
+        return;
+      }
+      const unlocked = await isProviderUnlocked(provider);
+      const activeAccount = provider.selectedAddress ?? window.ethereum?.selectedAddress;
+      if (!unlocked || !activeAccount) {
+        setAccount(null);
+        return;
+      }
+      const list = accounts ?? (await provider.request({ method: "eth_accounts" }));
+      if (!Array.isArray(list) || list.length === 0) {
+        setAccount(null);
+        return;
+      }
+      const normalized = activeAccount.toLowerCase();
+      if (list.some((a) => typeof a === "string" && a.toLowerCase() === normalized)) {
+        setAccount(activeAccount);
+      } else {
+        setAccount(null);
+      }
+    },
+    [isProviderUnlocked]
+  );
 
   useEffect(() => {
     const injectedProvider = getMetaMaskProvider();
@@ -162,9 +178,9 @@ export const useWallet = () => {
       cleanupListeners.current?.();
       cleanupListeners.current = null;
     };
-  }, []);
+  }, [syncAccountFromProvider]);
 
-  const disconnectWallet = () => {
+  const disconnectWallet = useCallback(() => {
     cleanupListeners.current?.();
     cleanupListeners.current = null;
     providerRef.current = null;
@@ -172,13 +188,26 @@ export const useWallet = () => {
     toast({
       title: "Wallet disconnected",
     });
-  };
+  }, [toast]);
 
-  return {
-    account,
-    connecting,
-    connectWallet,
-    disconnectWallet,
-    signMessage,
-  };
+  const value = useMemo(
+    () => ({
+      account,
+      connecting,
+      connectWallet,
+      disconnectWallet,
+      signMessage,
+    }),
+    [account, connecting, connectWallet, disconnectWallet, signMessage]
+  );
+
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+};
+
+export const useWallet = () => {
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error("useWallet must be used within a WalletProvider");
+  }
+  return context;
 };
