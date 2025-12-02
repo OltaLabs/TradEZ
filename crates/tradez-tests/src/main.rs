@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration, u64};
 
 use rand::{Rng, seq::SliceRandom};
 
@@ -23,8 +23,8 @@ async fn main() {
                     _smart_rollup_client,
                     _tradez_sequencer,
                     tradez_client| {
-            tradez_client.faucet_usdc(1000000000);
-            tradez_client.faucet_xtz(1000000000);
+            tradez_client.faucet_usdc(u64::MAX / 10);
+            tradez_client.faucet_xtz(u64::MAX / 10);
             let mut rand = rand::thread_rng();
             let mut price_values = Vec::new();
             for _ in 0..14 {
