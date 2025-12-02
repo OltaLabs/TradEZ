@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { Button } from "@/components/ui/button";
 import { Wallet, LogOut, Coins } from "lucide-react";
@@ -14,6 +14,12 @@ const Header = () => {
   const { faucet, isApiConfigured } = useTradezApi();
   const [claiming, setClaiming] = useState(false);
   const [claimingCurrency, setClaimingCurrency] = useState<RpcCurrency | null>(null);
+
+  useEffect(() => {
+    if (!account && claimingCurrency) {
+      setClaimingCurrency(null);
+    }
+  }, [account, claimingCurrency]);
 
   const requestFaucet = async (currency: RpcCurrency) => {
     if (!account || claimingCurrency) {
